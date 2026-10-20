@@ -50,7 +50,18 @@ export async function pptxOutline(rel: string): Promise<{ slide: number; lines: 
   return out
 }
 
+/** Documents and media the default app may open. Anything else (.app, .command, .pkg, scripts…) could run code. */
+const OPENABLE = /\.(md|txt|rtf|pdf|png|jpe?g|gif|webp|heic|bmp|tiff?|svg|docx?|pptx?|xlsx?|csv|odt|ods|odp|pages|key|numbers|epub|mp3|m4a|wav|mp4|mov)$/i
+
+export const canOpen = (rel: string) => OPENABLE.test(rel)
+
 export async function openExternal(rel: string): Promise<void> {
+  if (!canOpen(rel)) throw new Error('For safety, Writing Centre only opens documents and media. Use Show in Finder for other files.')
   const error = await shell.openPath(await pathFor(rel))
   if (error) throw new Error(error)
+}
+
+/** Reveals any vault file in Finder without opening it. */
+export async function reveal(rel: string): Promise<void> {
+  shell.showItemInFolder(await pathFor(rel))
 }

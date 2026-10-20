@@ -232,12 +232,13 @@ const viaCode = () => method() === 'subscription'
 const fold = (messages: ChatTurn[]) =>
   messages.map((m) => (m.role === 'user' ? m.content : `<your_previous_reply>\n${m.content}\n</your_previous_reply>`)).join('\n\n')
 
-/** The Assistant runs as the writer's own Claude Code session (CLAUDE.md, skills, hooks) in the vault folder. */
-const READ_ONLY_TOOLS = ['Read', 'Glob', 'Grep', 'Skill', 'WebSearch', 'WebFetch']
-const session = (tools: string[]): code.FullSession | undefined => {
-  const root = vault.getRoot()
-  return root ? { cwd: root, tools } : undefined
-}
+/**
+ * The Assistant runs as the writer's own Claude Code session (CLAUDE.md, skills, hooks). Notes can contain
+ * pasted, untrusted text, so it gets skills only: no file or web tools that a prompt injection could use to
+ * read private files and send them out. The note and its linked notes are already in the prompt.
+ */
+const SKILLS_ONLY = ['Skill']
+const session = (tools: string[]): code.FullSession => ({ tools })
 
 async function structured<T>(system: string, messages: ChatTurn[], schema: { [key: string]: unknown }, full?: code.FullSession): Promise<T> {
   if (viaCode()) {
@@ -300,7 +301,7 @@ export async function suggest(a: { path: string; text: string; selection?: strin
     `You are a writing assistant working inside the writer's notes app. You never edit the file yourself: you propose edits that the writer will review one by one. Propose edits only when they help with the request; questions can be answered with an empty edits list. ${QUOTE_RULES.replace('Every quote', 'Every "find"')}`,
     withContext(a.history, await buildContext(a.path, a.text), a.instruction + focus),
     editsSchema,
-    session(READ_ONLY_TOOLS)
+    session(SKILLS_ONLY)
   )
 }
 

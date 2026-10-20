@@ -26,6 +26,8 @@ writeFileSync(work + 'ppt/ppt/slides/slide1.xml', slide('Opening', 'Why we write
 writeFileSync(work + 'ppt/ppt/slides/slide2.xml', slide('Method', 'Tom &amp; Jerry'))
 execFileSync('/usr/bin/zip', ['-qr', vault + 'Talk.pptx', 'ppt'], { cwd: work + 'ppt' })
 writeFileSync(vault + 'data.xyz', 'unknown')
+writeFileSync(vault + 'notes.csv', 'a,b')
+writeFileSync(vault + 'run.command', '#!/bin/sh\necho pwned > /tmp/wc-pwned\n')
 
 const app = await electron.launch({ ...target, env: { ...process.env, WC_VAULT: vault, WC_HEADLESS: '1', WC_USER_DATA: userData } })
 const page = await app.firstWindow()
@@ -67,9 +69,16 @@ await check('.pptx shows slide-by-slide text', async () => {
   await page.locator('.slide-card', { hasText: 'Tom & Jerry' }).waitFor()
 })
 
-await check('unknown types offer the default app; vault protocol refuses paths outside the vault', async () => {
-  await open('data.xyz')
+await check('documents offer the default app; unknown or executable types only Show in Finder', async () => {
+  await open('notes.csv')
   await page.locator('.viewer .empty button', { hasText: 'Open in default app' }).waitFor()
+  await open('data.xyz')
+  await page.locator('.viewer .empty button', { hasText: 'Show in Finder' }).waitFor()
+  const blocked = await page.evaluate(() => window.api.files.open('run.command').then(() => 'opened', (e) => String(e.message)))
+  assert.match(blocked, /only opens documents and media/)
+})
+
+await check('vault protocol refuses paths outside the vault', async () => {
   for (const url of ['vault://f/..%2F..%2F..%2Fetc%2Fpasswd', 'vault://f/%2Fetc%2Fpasswd'])
     assert.equal(await app.evaluate(async ({ net }, u) => (await net.fetch(u)).status, url), 404, url)
 })

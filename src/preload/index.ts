@@ -53,7 +53,8 @@ const api = {
   files: {
     docx: invoke('files:docx'),
     pptx: invoke('files:pptx'),
-    open: invoke('files:open')
+    open: invoke('files:open'),
+    reveal: invoke('files:reveal')
   },
   settings: {
     get: invoke('settings:get'),

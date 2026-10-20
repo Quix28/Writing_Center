@@ -57,6 +57,8 @@ await check('write mode streams the plan\'s output into the editor', async () =>
   await page.keyboard.press('Enter')
   await page.waitForFunction(() => window.wcView().state.doc.toString().includes('Rewritten'))
   await page.locator('.msg.assistant', { hasText: 'I rewrote the passage' }).waitFor()
+  const w = calls().at(-1)
+  assert(w.args.includes('--setting-sources=user') && w.args.includes('--tools='), 'Write: user settings only, no tools')
   const d = await doc()
   assert(d.includes('Rewritten on the plan.') && !d.includes('A second paragraph') && d.includes('Things are kind of important'), 'only the paragraph under the cursor is rewritten')
 })
@@ -88,6 +90,8 @@ await check('a plan usage limit shows a clear toast', async () => {
   await page.locator('.chat-input textarea').fill('LIMIT test')
   await page.keyboard.press('Enter')
   await page.locator('.toast', { hasText: 'usage limit' }).waitFor()
+  const c = calls().at(-1)
+  assert(c.args.includes('--setting-sources=user') && c.args.includes('--tools=Skill') && c.args.includes('--allowedTools=Skill'), 'Suggest: user settings, skills only')
 })
 
 await app.close()

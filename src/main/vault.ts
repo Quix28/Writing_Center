@@ -20,6 +20,14 @@ export function safePath(vaultRoot: string, rel: string): string {
   return abs
 }
 
+/** Hidden paths (.claude/, .git/, .obsidian/…) are config, not notes: the renderer may never create or write them. */
+const hidden = (rel: string) => rel.split(/[\\/]/).some((seg) => seg.startsWith('.') && seg !== '.' && seg !== '..')
+
+async function writableInVault(rel: string): Promise<string> {
+  if (hidden(rel)) throw new Error(`Refusing to write hidden path: ${rel}`)
+  return resolveInVault(rel)
+}
+
 /** Also rejects paths that escape through a symlink inside the vault. */
 async function resolveInVault(rel: string, allowRoot = false): Promise<string> {
   if (!root) throw new Error('No vault open')
@@ -90,7 +98,7 @@ export async function read(rel: string): Promise<string> {
 
 /** Atomic write: temp file + rename, so a crash mid-write never leaves a half-written note. */
 export async function write(rel: string, content: string): Promise<void> {
-  const abs = await resolveInVault(rel)
+  const abs = await writableInVault(rel)
   const tmp = join(dirname(abs), `.${basename(abs)}.${process.pid}.tmp`)
   lastWritten.set(rel, content)
   await writeFile(tmp, content, 'utf8')
@@ -98,7 +106,7 @@ export async function write(rel: string, content: string): Promise<void> {
 }
 
 export async function create(rel: string, dir: boolean): Promise<void> {
-  const abs = await resolveInVault(rel)
+  const abs = await writableInVault(rel)
   if (dir) await mkdir(abs)
   else {
     await mkdir(dirname(abs), { recursive: true })
@@ -107,7 +115,7 @@ export async function create(rel: string, dir: boolean): Promise<void> {
 }
 
 export async function move(from: string, to: string): Promise<void> {
-  const [a, b] = [await resolveInVault(from), await resolveInVault(to)]
+  const [a, b] = [await resolveInVault(from), await writableInVault(to)]
   const exists = await access(b).then(() => true, () => false)
   if (exists) throw new Error(`${to} already exists`)
   await rename(a, b)

@@ -71,6 +71,10 @@ await check('create + rename via IPC stay in vault; escape rejected', async () =
     const out = {}
     try { await window.api.vault.write('../escape.md', 'x'); out.escape = 'allowed' } catch { out.escape = 'rejected' }
     try { await window.api.vault.create('/tmp/abs.md', false); out.abs = 'allowed' } catch { out.abs = 'rejected' }
+    for (const p of ['.claude/settings.json', 'notes/.claude/x.json', '.git/config']) {
+      try { await window.api.vault.create(p, false); out[p] = 'allowed' } catch { out[p] = 'rejected' }
+    }
+    try { await window.api.vault.write('.claude/settings.json', '{}'); out.write = 'allowed' } catch { out.write = 'rejected' }
     out.vaultAfterSet = (await window.api.settings.set({ vault: '/', claudeAuth: 'browser', clawd: false })).vault
     await window.api.vault.create('folder/New.md', false)
     await window.api.vault.move('folder/New.md', 'folder/Renamed.md')
@@ -78,7 +82,7 @@ await check('create + rename via IPC stay in vault; escape rejected', async () =
   })
   assert.equal(r.vaultAfterSet, vault, 'renderer must not be able to move the vault root')
   delete r.vaultAfterSet
-  assert.deepEqual(r, { escape: 'rejected', abs: 'rejected' })
+  assert.deepEqual(r, { escape: 'rejected', abs: 'rejected', '.claude/settings.json': 'rejected', 'notes/.claude/x.json': 'rejected', '.git/config': 'rejected', write: 'rejected' })
   assert.equal(JSON.parse(readFileSync(userData + 'settings.json', 'utf8')).claudeAuth, undefined)
   assert(!existsSync(vault + '../escape.md') && existsSync(vault + 'folder/Renamed.md'))
 })

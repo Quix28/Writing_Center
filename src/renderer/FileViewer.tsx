@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { api, errorText } from './api'
 import { Icon } from './icons'
 
+/** Mirrors the main process allowlist; the main process enforces it. */
+export const OPENABLE = /\.(md|txt|rtf|pdf|png|jpe?g|gif|webp|heic|bmp|tiff?|svg|docx?|pptx?|xlsx?|csv|odt|ods|odp|pages|key|numbers|epub|mp3|m4a|wav|mp4|mov)$/i
 export const IMAGE = /\.(png|jpe?g|gif|webp|bmp|svg|heic)$/i
 export const vaultUrl = (path: string) => `vault://f/${path.split('/').map(encodeURIComponent).join('/')}`
 export const fileKind = (path: string) =>
@@ -50,7 +52,11 @@ export function FileViewer({ path }: { path: string }) {
     <div className="viewer">
       <div className="viewer-bar">
         <span className="viewer-name">{name}</span>
-        <button onClick={() => api.files.open(path).catch((e) => alert(errorText(e)))}>Open in default app</button>
+        {OPENABLE.test(path) ? (
+          <button onClick={() => api.files.open(path).catch((e) => alert(errorText(e)))}>Open in default app</button>
+        ) : (
+          <button onClick={() => api.files.reveal(path)}>Show in Finder</button>
+        )}
       </div>
       <div className="viewer-body">
         {kind === 'image' && <img className="viewer-image" src={vaultUrl(path)} alt={name} />}
@@ -60,8 +66,12 @@ export function FileViewer({ path }: { path: string }) {
         {kind === 'other' && (
           <div className="empty">
             <Icon name="file" size={28} />
-            <p>Writing Centre can't preview this kind of file.</p>
-            <button className="primary" onClick={() => api.files.open(path)}>Open in default app</button>
+            <p>Writing Centre can't preview this kind of file{OPENABLE.test(path) ? '.' : ", and won't open it directly in case it is a program."}</p>
+            {OPENABLE.test(path) ? (
+              <button className="primary" onClick={() => api.files.open(path)}>Open in default app</button>
+            ) : (
+              <button className="primary" onClick={() => api.files.reveal(path)}>Show in Finder</button>
+            )}
           </div>
         )}
       </div>

@@ -95,8 +95,8 @@ function friendly(message: string): Error {
   return new Error(message)
 }
 
-/** Your full Claude Code: global CLAUDE.md, user settings, plugins, hooks and skills, with the tools listed here. */
-export type FullSession = { cwd: string; tools: string[] }
+/** Your full Claude Code: global CLAUDE.md, user settings, plugins, hooks and skills, with only the tools listed here. Always runs in the app's empty folder. */
+export type FullSession = { tools: string[] }
 
 /** The app's own output rules, stated with operator authority so personal response-format rules don't end up in a note. */
 const OUTPUT_CONTRACT =
@@ -104,14 +104,15 @@ const OUTPUT_CONTRACT =
 
 /**
  * One headless Claude Code turn. By default isolated (no tools or only WebSearch; your settings, hooks and
- * CLAUDE.md left out). With `full`, it runs as your normal Claude Code session in the vault folder.
+ * CLAUDE.md left out). With `full`, it runs as your normal Claude Code session.
  */
 export async function run(req: { model: string; system: string; prompt: string; schema?: object; web?: boolean; id?: string; onText?: (t: string) => void; full?: FullSession }): Promise<CodeResult> {
   const tools = req.full ? req.full.tools : req.web ? ['WebSearch'] : []
   const args = [
     '-p',
     '--model', req.model,
-    ...(req.full ? [] : ['--setting-sources=', '--disable-slash-commands']),
+    // Full sessions load only the user's own settings: never project settings (hooks!) from a folder the app didn't create.
+    ...(req.full ? ['--setting-sources=user'] : ['--setting-sources=', '--disable-slash-commands']),
     '--strict-mcp-config',
     '--no-session-persistence',
     `--tools=${tools.join(',')}`,
@@ -127,7 +128,6 @@ export async function run(req: { model: string; system: string; prompt: string; 
   await runClaude(args, {
     stdin: req.prompt,
     id: req.id,
-    cwd: req.full?.cwd,
     finished: () => !!done.event,
     onLine: (line) => {
       let ev: any

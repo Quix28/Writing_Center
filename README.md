@@ -43,9 +43,9 @@ Click the **Claude** or **Google Docs** dot in the status bar (bottom left), or 
 - **Use my Claude subscription** (recommended if you have Pro, Max or Team)
   - Every AI request runs through your own Claude Code (`claude -p`, its documented headless mode).
   - Usage counts against your plan's limits, so there's no API bill.
-  - **The Assistant runs as your normal Claude Code session.** It has your global CLAUDE.md, user settings, plugins, hooks and skills, and its working folder is the vault.
-    - In Suggest mode it has read-only tools only: Read, Glob, Grep, Skill, WebSearch and WebFetch. Edit, Write and Bash are left out, so it can't change files.
-    - In Write mode it has no tools, so only the rewrite streams into your note.
+  - **The Assistant runs as your normal Claude Code session.** It loads your global CLAUDE.md, user settings, plugins, hooks and skills.
+    - It runs in the app's own empty folder and loads only your *user* settings, never project settings from the vault. A shared vault can't add hooks that run commands.
+    - Its only tool is Skill. Notes can contain pasted, untrusted text, so it has no file or web tools that a prompt injection could use to read your files and send them out. The note and its linked notes are already in its prompt.
     - An app instruction keeps personal response-format rules (such as a required prefix) out of the note. This was checked against a real CLAUDE.md with an "Answer:" rule.
     - MCP servers are left out to keep each request fast.
   - Review, Clawd, AI check and Find inspiration run in an isolated mode: an empty folder, no settings, hooks, plugins or MCP servers, and no API keys. That keeps them fast and predictable.
@@ -116,7 +116,8 @@ Test-only variables (leave them unset in normal use): `WC_HEADLESS`, `WC_VAULT`,
   - PDFs open in the built-in PDF viewer. Images display directly.
   - `.docx` files are converted with macOS `textutil` and shown read-only, in a frame that can't run scripts.
   - `.pptx` files show the text of each slide.
-  - Anything else gets an **Open in default app** button.
+  - Documents and media (Office, iWork, CSV, audio, video…) get **Open in default app**.
+  - Anything else, including programs and scripts such as `.app` or `.command`, only gets **Show in Finder**, so a file in a shared vault can't run code from inside the app.
 - **AI check:** the **AI check** tab, or ⌘P → *AI check*.
   - Shows two independent scores (Claude and the local detector), a score for each paragraph from both, and highlights coloured by whichever score you pick.
   - Claude also lists the clearest tells, each with **Propose rewrite**.
@@ -202,6 +203,7 @@ Test-only variables (leave them unset in normal use): `WC_HEADLESS`, `WC_VAULT`,
 ### Everything else
 
 - **Live preview:** hides markdown syntax and styles headings, emphasis, links and wikilinks. It doesn't render tables, images, callouts, or embeds.
+- **Hidden paths:** the app never creates or writes hidden paths such as `.claude/`, `.git/` or `.obsidian/`.
 - **Files:**
   - Renaming a note doesn't update links that point to it.
   - Dotfiles and dot-folders (e.g. `.obsidian`) are hidden and not watched.

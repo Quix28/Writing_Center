@@ -53,6 +53,7 @@ type Api = {
     docx(path: string): Promise<string>
     pptx(path: string): Promise<{ slide: number; lines: string[] }[]>
     open(path: string): Promise<void>
+    reveal(path: string): Promise<void>
   }
   settings: {
     get(): Promise<Settings>

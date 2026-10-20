@@ -67,6 +67,7 @@ handle('vault:notes', vault.readAllNotes)
 handle('files:docx', files.docxHtml)
 handle('files:pptx', files.pptxOutline)
 handle('files:open', files.openExternal)
+handle('files:reveal', files.reveal)
 handle('settings:get', loadSettings)
 /** The renderer may change only these; the vault changes through the native folder picker, auth through Connections. */
 handle('settings:set', (patch: Partial<Settings>) => {
