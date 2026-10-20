@@ -101,6 +101,22 @@ await check('AI check highlights paragraphs even when they score low, and surviv
 })
 
 await app.close()
+
+await check('opened like from Finder (bare PATH), it still finds claude in ~/.local/bin', async () => {
+  const home = tmp('home')
+  mkdirSync(home + '.local/bin', { recursive: true })
+  writeFileSync(home + '.local/bin/claude', '#!/bin/sh\necho "FOUND IN LOCAL BIN"\nsleep 30\n')
+  chmod(home + '.local/bin/claude')
+  const bare = { HOME: home, USER: process.env.USER, SHELL: '/bin/zsh', TMPDIR: process.env.TMPDIR, PATH: '/usr/bin:/bin:/usr/sbin:/sbin', WC_VAULT: tmp('vault'), WC_HEADLESS: '1', WC_USER_DATA: tmp('userdata') }
+  const finderApp = await electron.launch({ ...target, env: bare })
+  const p = await finderApp.firstWindow()
+  await p.locator('.tree-row', { hasText: 'Essay' }).click()
+  await p.locator('.side-tabs button', { hasText: 'Claude Code' }).click()
+  await p.waitForFunction(() => document.querySelector('.claude-term .xterm-rows')?.innerText.includes('FOUND IN LOCAL BIN'), null, { timeout: 15000 })
+  await finderApp.close()
+  rmSync(home, { recursive: true, force: true })
+})
+
 claudeApi.close()
 detector.close()
 for (const n of ['vault', 'userdata', 'bin']) rmSync(tmp(n), { recursive: true, force: true })

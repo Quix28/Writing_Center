@@ -11,9 +11,11 @@ import { join } from 'node:path'
 
 const active = new Map<string, () => void>()
 
-function findClaude(): string | null {
-  const dirs = [...(process.env.PATH ?? '').split(':'), join(homedir(), '.local/bin'), join(homedir(), '.claude/local'), '/opt/homebrew/bin', '/usr/local/bin']
-  return dirs.map((d) => join(d, 'claude')).find((p) => existsSync(p)) ?? null
+/** Where Claude Code's installers put `claude`. Finder-launched apps don't get your shell's PATH, so look there too. */
+export const CLAUDE_DIRS = () => [...(process.env.PATH ?? '').split(':'), join(homedir(), '.local/bin'), join(homedir(), '.claude/local'), '/opt/homebrew/bin', '/usr/local/bin'].filter(Boolean)
+
+export function findClaude(): string | null {
+  return CLAUDE_DIRS().map((d) => join(d, 'claude')).find((p) => existsSync(p)) ?? null
 }
 
 /** No API keys and no parent Claude Code session leak in: those would switch Claude Code off the subscription. */
