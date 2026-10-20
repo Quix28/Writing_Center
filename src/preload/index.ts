@@ -46,6 +46,14 @@ const api = {
     saveClient: invoke('gdocs:saveClient'),
     connect: invoke('gdocs:connect')
   },
+  term: {
+    start: invoke('term:start'),
+    write: invoke('term:write'),
+    resize: invoke('term:resize'),
+    kill: invoke('term:kill'),
+    onData: on('term:data'),
+    onExit: on('term:exit')
+  },
   detector: {
     status: invoke('detector:status'),
     score: invoke('detector:score')

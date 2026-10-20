@@ -81,7 +81,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); outline
 .empty-hint { padding: 8px 16px; }
 
 /* ---------- center ---------- */
-.center { display: flex; flex-direction: column; min-width: 0; min-height: 0; position: relative; background: var(--bg); }
+.center { display: flex; flex-direction: column; min-width: 0; min-height: 0; position: relative; background: var(--bg); overflow: hidden; }
 .tabs { display: flex; align-items: stretch; background: var(--bg-2); border-bottom: 1px solid var(--border-soft); overflow-x: auto; min-height: 36px; flex-shrink: 0; }
 .tab { display: flex; align-items: center; gap: 7px; padding: 0 8px 0 12px; cursor: pointer; white-space: nowrap; color: var(--muted); border-right: 1px solid var(--border-soft); position: relative; }
 .tab:hover { color: var(--text-2); }
@@ -292,3 +292,24 @@ details.option { display: block; }
 .chip.band-high { color: var(--danger); background: #e2847a1f; }
 .cm-ai-mid { background: #d9b45f14; box-shadow: inset 3px 0 0 #d9b45f88; }
 .cm-ai-high { background: #e2847a1c; box-shadow: inset 3px 0 0 var(--danger); }
+
+/* ---------- Claude Code terminal ---------- */
+.claude-term { flex: 1; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.term-bar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.term-bar button { font-size: 12px; padding: 3px 9px; }
+.term-host { flex: 1; min-height: 200px; background: #16181b; border: 1px solid var(--border-soft); border-radius: 6px; padding: 6px 4px 6px 8px; overflow: hidden; }
+.term-host .xterm { height: 100%; }
+.term-host .xterm-viewport { background: transparent !important; }
+.term-error { margin: 0; }
+.term-hint { margin: 0; }
+.side-body > .claude-term { flex: 1; }
+.side-resize { position: absolute; left: -3px; top: 0; bottom: 0; width: 6px; cursor: col-resize; z-index: 5; }
+.side-resize:hover, .side-resize.dragging { background: #9bb8d855; }
+.side { position: relative; }
+.side[hidden] { display: none; }
+.side-pane[hidden] { display: none !important; }
+.side-pane { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.cm-ai-low { background: #82c09512; box-shadow: inset 3px 0 0 #82c09588; }
+.side-pane > .assistant, .side-pane > .claude-term { flex: 1; min-height: 0; }
+.side-tabs { overflow-x: auto; scrollbar-width: none; }
+.side-tabs button { white-space: nowrap; }

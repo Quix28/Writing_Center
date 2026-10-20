@@ -18,6 +18,12 @@ rm -f "$RES/default_app.asar"
 mkdir -p "$RES/app"
 ditto --noextattr --norsrc out "$RES/app/out"
 cp -X package.json "$RES/app/"
+# node-pty (the Claude Code terminal) is native, so it ships as files: its JS, and macOS binaries only.
+mkdir -p "$RES/app/node_modules/node-pty/prebuilds"
+ditto --noextattr --norsrc node_modules/node-pty/lib "$RES/app/node_modules/node-pty/lib"
+cp -X node_modules/node-pty/package.json "$RES/app/node_modules/node-pty/"
+for arch in darwin-arm64 darwin-x64; do ditto --noextattr --norsrc "node_modules/node-pty/prebuilds/$arch" "$RES/app/node_modules/node-pty/prebuilds/$arch"; done
+chmod +x "$RES"/app/node_modules/node-pty/prebuilds/darwin-*/spawn-helper
 cp -X build/icon.icns "$RES/electron.icns"
 
 plutil -replace CFBundleName -string "Writing Centre" "$PLIST"

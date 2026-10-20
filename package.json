@@ -12,7 +12,8 @@
     "test": "node --test --experimental-strip-types test/*.test.ts",
     "e2e": "npm run build && for f in test/e2e-phase*.mjs; do node \"$f\" || exit 1; done",
     "app": "zsh scripts/make-app.sh",
-    "icon": "electron scripts/make-icon.mjs"
+    "icon": "electron scripts/make-icon.mjs",
+    "postinstall": "chmod +x node_modules/node-pty/prebuilds/darwin-*/spawn-helper"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",
@@ -28,10 +29,13 @@
     "@googleapis/drive": "^26.0.2",
     "@lezer/highlight": "^1.2.5",
     "@lezer/markdown": "^1.8.1",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
     "@xyflow/react": "^12.12.0",
     "chokidar": "^5.0.0",
     "google-auth-library": "^11.3.1",
     "harper.js": "^2.13.0",
+    "node-pty": "^1.1.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },

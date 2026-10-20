@@ -45,6 +45,14 @@ type Api = {
     saveClient(clientId: string, clientSecret: string): Promise<GoogleStatus>
     connect(): Promise<GoogleStatus>
   }
+  term: {
+    start(size: { cols: number; rows: number }): Promise<string>
+    write(id: string, data: string): Promise<void>
+    resize(id: string, cols: number, rows: number): Promise<void>
+    kill(id: string): Promise<void>
+    onData(cb: (d: { id: string; data: string }) => void): () => void
+    onExit(cb: (d: { id: string; exitCode: number }) => void): () => void
+  }
   detector: {
     status(): Promise<{ installed: boolean; running: boolean; firstRun: boolean }>
     score(text: string): Promise<DetectorResult>

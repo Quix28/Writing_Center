@@ -261,10 +261,13 @@ export function Clawd({ path, onInspire, autoReview = true }: { path: string; on
       if (at >= 0) setPos(place(at))
     }
     view.scrollDOM.addEventListener('scroll', follow, { passive: true })
-    window.addEventListener('resize', follow)
+    // The editor area also changes size when the side panel is resized or widened for the terminal.
+    const area = host.current?.parentElement
+    const ro = new ResizeObserver(() => follow())
+    if (area) ro.observe(area)
     return () => {
       view.scrollDOM.removeEventListener('scroll', follow)
-      window.removeEventListener('resize', follow)
+      ro.disconnect()
     }
   }, [spot, place, home])
 

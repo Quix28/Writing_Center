@@ -20,6 +20,7 @@ import { StatusBar } from './StatusBar'
 import { Icon } from './icons'
 import { FileViewer } from './FileViewer'
 import { AiCheckPanel } from './AiCheckPanel'
+import { ClaudeTerminal } from './ClaudeTerminal'
 import { iconFor } from './FileTree'
 
 const GRAPH = '::graph'
@@ -44,6 +45,26 @@ export function App() {
   const [palette, setPalette] = useState(false)
   const [sideOpen, setSideOpen] = useState(true)
   const [sideTab, setSideTab] = useState('backlinks')
+  const [sideWidth, setSideWidthState] = useState(() => {
+    try {
+      return Number(localStorage.getItem('sideWidth')) || 360
+    } catch {
+      return 360
+    }
+  })
+  const setSideWidth = (w: number) => {
+    setSideWidthState(w)
+    try {
+      localStorage.setItem('sideWidth', String(w))
+    } catch {
+      /* width just won't be remembered */
+    }
+  }
+  const selectSideTab = (id: string) => {
+    setSideTab(id)
+    // The terminal needs room for Claude Code's layout.
+    if (id === 'claude' && sideWidth < 520) setSideWidth(Math.min(580, Math.max(window.innerWidth - 640, 360)))
+  }
   const [conn, setConn] = useState<ConnectionState>({})
   const [showConnections, setShowConnections] = useState(false)
   const [reviewTrigger, setReviewTrigger] = useState(0)
@@ -248,7 +269,7 @@ export function App() {
   const isText = (t: string | null) => !!t && /\.(md|txt)$/i.test(t)
 
   return (
-    <div className={`shell ${sideOpen ? '' : 'no-side'}`}>
+    <div className={`shell ${sideOpen ? '' : 'no-side'}`} style={{ gridTemplateColumns: sideOpen ? `252px minmax(0, 1fr) ${sideWidth}px` : '252px minmax(0, 1fr)' }}>
       <FileTree
         vaultName={vault.replace(/\/+$/, '').split('/').pop() || vault}
         onPickVault={pickVault}
@@ -283,14 +304,18 @@ export function App() {
           </div>
         )}
       </main>
-      {sideOpen && (
+      {vault && (
         <SidePanel
+          hidden={!sideOpen}
+          width={sideWidth}
+          onResize={setSideWidth}
           selected={sideTab}
-          onSelect={setSideTab}
+          onSelect={selectSideTab}
           tabs={[
             { id: 'backlinks', label: 'Backlinks', render: () => <Backlinks active={active} notes={notes} files={files} onOpen={open} /> },
             { id: 'review', label: 'Review', render: () => <ReviewPanel path={active} trigger={reviewTrigger} /> },
-            { id: 'aicheck', label: 'AI check', render: () => <AiCheckPanel path={active} trigger={aiTrigger} /> },
+            { id: 'aicheck', label: 'AI check', render: (visible) => <AiCheckPanel path={active} trigger={aiTrigger} visible={visible} /> },
+            { id: 'claude', label: 'Claude Code', render: (visible) => <ClaudeTerminal visible={visible} activePath={active} /> },
             { id: 'assistant', label: 'Assistant', render: () => <AssistantPanel path={active} authMethod={conn.claude?.method} /> },
             { id: 'inspiration', label: 'Inspiration', render: () => <InspirationPanel state={inspo} /> }
           ]}

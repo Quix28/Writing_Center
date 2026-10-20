@@ -6,6 +6,7 @@ import * as claude from './claude'
 import * as gdocs from './gdocs'
 import * as files from './files'
 import * as detector from './detector'
+import * as terminal from './terminal'
 
 if (process.env.WC_USER_DATA) app.setPath('userData', process.env.WC_USER_DATA)
 protocol.registerSchemesAsPrivileged([files.VAULT_SCHEME])
@@ -99,6 +100,10 @@ handle('claude:inspire', claude.inspire)
 handle('claude:aiTells', claude.aiTells)
 handle('detector:status', detector.status)
 handle('detector:score', detector.score)
+ipcMain.handle('term:start', (e, size: { cols: number; rows: number }) => terminal.start(e.sender, size))
+handle('term:write', terminal.write)
+handle('term:resize', terminal.resize)
+handle('term:kill', terminal.kill)
 handle('gdocs:meta', gdocs.meta)
 handle('gdocs:list', gdocs.list)
 handle('gdocs:create', gdocs.create)

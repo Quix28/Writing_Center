@@ -42,7 +42,7 @@ function ScoreCard({ title, source, load, score, note, children }: { title: stri
   )
 }
 
-export function AiCheckPanel({ path, trigger }: { path: string | null; trigger: number }) {
+export function AiCheckPanel({ path, trigger, visible }: { path: string | null; trigger: number; visible: boolean }) {
   const [claude, setClaude] = useState<Load<AiTells>>({ state: 'idle' })
   const [detector, setDetector] = useState<Load<DetectorResult>>({ state: 'idle' })
   const [colorBy, setColorBy] = useState<Source>('detector')
@@ -61,11 +61,12 @@ export function AiCheckPanel({ path, trigger }: { path: string | null; trigger: 
     const source = colorBy === 'detector' && detectorData ? 'detector' : 'claude'
     const spans = paras.flatMap((p, i) => {
       const s = scores[i][source]
-      if (s === undefined || band(s) === 'low') return []
+      if (s === undefined) return []
       return [{ from: p.from, to: p.to, cls: `cm-ai-${band(s)}`, title: `Claude ${scores[i].claude ?? '–'}, detector ${scores[i].detector ?? '–'}` }]
     })
     view.dispatch({ effects: setSpans.of(spans) })
-  }, [claudeData, detectorData, colorBy, checkedPath, path])
+    // Re-applied when the tab is shown again: Review and Clawd use the same highlight layer.
+  }, [claudeData, detectorData, colorBy, checkedPath, path, visible])
 
   const run = async () => {
     const view = getView()

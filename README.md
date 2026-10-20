@@ -118,6 +118,13 @@ Test-only variables (leave them unset in normal use): `WC_HEADLESS`, `WC_VAULT`,
   - `.pptx` files show the text of each slide.
   - Documents and media (Office, iWork, CSV, audio, video…) get **Open in default app**.
   - Anything else, including programs and scripts such as `.app` or `.command`, only gets **Show in Finder**, so a file in a shared vault can't run code from inside the app.
+- **Claude Code:** the **Claude Code** tab runs your real, interactive `claude` inside the app, in the vault folder, in a proper terminal.
+  - It's exactly your terminal Claude Code: your settings, CLAUDE.md, skills, plugins, permission mode and prompts, using your Claude plan.
+  - **Ask about this note** mentions the open note (`@note.md`). **Send selection** pastes the editor selection as one block. **Restart** starts a fresh session.
+  - When Claude edits a note, the editor updates right away. The session keeps running while you switch tabs or notes.
+  - The side panel widens for the terminal; drag its left edge to resize any tab.
+  - The app starts it through your login shell, so `claude` must work in Terminal.app.
+  - In this tab Claude can do whatever your own Claude Code may do in that folder, including edits in auto mode if that's your setting.
 - **AI check:** the **AI check** tab, or ⌘P → *AI check*.
   - Shows two independent scores (Claude and the local detector), a score for each paragraph from both, and highlights coloured by whichever score you pick.
   - Claude also lists the clearest tells, each with **Propose rewrite**.
@@ -165,6 +172,8 @@ Test-only variables (leave them unset in normal use): `WC_HEADLESS`, `WC_VAULT`,
 | **Real** subscription run: a Review through the actual Claude Code login returned correct findings with exact quotes | one manual headless run on Haiku |
 | The packaged **Writing Centre.app** passes every e2e suite above | `WC_APP=… npm run e2e` |
 | Headless tests never touch the real macOS Keychain (Chromium mock keychain) | checked with a throwaway app name |
+| Claude Code tab: real terminal (node-pty + xterm.js) in the vault folder; typing, **Ask about this note**, the session surviving tab switches; the panel widening; Clawd staying in the editor area; side-panel tabs keeping their state; AI check highlighting low scores too | `test/e2e-phase12-terminal.mjs` (stand-in `claude`) |
+| **Real** Claude Code starts in the app's terminal (banner, model, plan, prompt) | headless run + screenshot |
 | Every file type is listed; PNG, PDF (built-in viewer), `.docx` (sandboxed) and `.pptx` (slide text) open; unknown types offer the default app; `vault://` refuses paths outside the vault | `test/e2e-phase8-files.mjs` (files generated with macOS tools) |
 | AI check: two separate scores, per-paragraph scores from both, highlights by either source, tells become suggest-mode rewrites | `test/e2e-phase9-aicheck.mjs` (mock detector by default) |
 | **Real** SlopTotal: installed, started by the app on 127.0.0.1, scored a note, and stopped when the app quit | `WC_REAL_DETECTOR=1 node test/e2e-phase9-aicheck.mjs` |
