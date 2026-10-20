@@ -79,23 +79,36 @@ export function ClaudeTerminal({ visible, activePath }: { visible: boolean; acti
     })
   }, [visible])
 
-  const send = (text: string) => {
-    if (!session.current) return
-    api.term.write(session.current, text)
-    term.current?.focus()
+  const [notice, setNotice] = useState<string | null>(null)
+
+  /**
+   * Inserts text as a paste, and only while Claude Code accepts pastes (bracketed-paste mode on). When a menu or
+   * permission prompt is open that mode is off, and typed characters could answer it ("1" = Yes), so nothing is sent.
+   */
+  const insert = (text: string) => {
+    const t = term.current
+    if (!session.current || !t) return
+    if (!t.modes.bracketedPasteMode) {
+      setNotice('Claude Code is showing a prompt or menu right now. Answer it first, then try again.')
+      setTimeout(() => setNotice(null), 4000)
+      t.focus()
+      return
+    }
+    api.term.write(session.current, paste(text))
+    t.focus()
   }
 
   const askAboutNote = () => {
     if (!activePath) return
     const path = oneLine(activePath)
-    send(/\s/.test(path) ? `the note "${path}" ` : `@${path} `)
+    insert(/\s/.test(path) ? `the note "${path}" ` : `@${path} `)
   }
 
   const sendSelection = () => {
     const view = getView()
     const sel = view?.state.selection.main
     if (!view || !sel || sel.empty) return
-    send(paste(`From ${oneLine(activePath ?? 'the open note')}:\n"""\n${view.state.sliceDoc(sel.from, sel.to)}\n"""\n`))
+    insert(`From ${oneLine(activePath ?? 'the open note')}:\n"""\n${view.state.sliceDoc(sel.from, sel.to)}\n"""\n`)
   }
 
   return (
@@ -107,6 +120,7 @@ export function ClaudeTerminal({ visible, activePath }: { visible: boolean; acti
         <button className="quiet" onClick={() => (session.current && api.term.kill(session.current), (session.current = null), start())} title="Start a fresh Claude Code session">Restart</button>
       </div>
       {error && <p className="error-text term-error">{error}</p>}
+      {notice && <p className="muted small term-error" role="status">{notice}</p>}
       <div className="term-host" ref={host} />
       <p className="muted small term-hint">Runs your own Claude Code in this vault, with your settings, skills and permission prompts. Notes it edits update in the editor.</p>
     </div>

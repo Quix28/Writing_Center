@@ -14,7 +14,8 @@ const PARA = 'I burned the toast again this morning, which my cat took personall
 writeFileSync(tmp('vault') + 'Essay.md', `# Essay\n\n${PARA}\n`)
 mkdirSync(tmp('bin'))
 // Stand-in for interactive `claude`: says hello, echoes each line it receives, shows the folder it runs in.
-writeFileSync(tmp('bin') + 'claude', '#!/bin/sh\necho "FAKE CLAUDE in $(pwd)"\nwhile IFS= read -r line; do echo "got: $line"; done\n')
+// Like Claude Code, it turns bracketed paste on at its prompt; "menu" turns it off, as a permission prompt would.
+writeFileSync(tmp('bin') + 'claude', '#!/bin/sh\nprintf "\\033[?2004h"\necho "FAKE CLAUDE in $(pwd)"\nwhile IFS= read -r line; do echo "got: $line"; case "$line" in *menu*) printf "\\033[?2004l";; *done*) printf "\\033[?2004h";; esac; done\n')
 chmod(tmp('bin') + 'claude')
 function chmod(p) { chmodSync(p, 0o755) }
 const check = async (name, fn) => { await fn(); console.log('✔', name) }
@@ -63,6 +64,19 @@ await check('typing goes to Claude; "Ask about this note" mentions the open note
   await page.locator('.term-bar button', { hasText: 'Ask about this note' }).click()
   await page.keyboard.press('Enter')
   await page.waitForFunction(() => document.querySelector('.claude-term .xterm-rows').innerText.includes('got: @Essay.md'))
+})
+
+await check('buttons insert nothing while Claude Code shows a prompt or menu', async () => {
+  await page.locator('.claude-term .xterm').click()
+  await page.keyboard.type('menu')
+  await page.keyboard.press('Enter')
+  await page.waitForFunction(() => document.querySelector('.claude-term .xterm-rows').innerText.includes('got: menu'))
+  await page.locator('.term-bar button', { hasText: 'Ask about this note' }).click()
+  await page.locator('.claude-term [role=status]', { hasText: 'Answer it first' }).waitFor()
+  await page.keyboard.type('done')
+  await page.keyboard.press('Enter')
+  await page.waitForFunction(() => document.querySelector('.claude-term .xterm-rows').innerText.includes('got: done'))
+  assert(!(await screen()).includes('got: @Essay.md @Essay.md'), 'nothing was typed into the prompt')
 })
 
 await check('switching tabs keeps the terminal session and the Assistant draft', async () => {
