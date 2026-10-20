@@ -1,0 +1,6 @@
+node_modules
+out
+dist
+build/icon-1024.png
+test/.tmp-*
+.DS_Store

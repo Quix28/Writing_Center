@@ -1,0 +1,76 @@
+.clawd {
+  --shell: #d97757;
+  --claw: #c4623f;
+  --leg: #9e4a2e;
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 20;
+  pointer-events: none;
+  transition: transform 1.2s cubic-bezier(0.45, 0, 0.55, 1);
+}
+.clawd-body { pointer-events: auto; background: none; border: none; padding: 0; cursor: pointer; display: block; }
+.clawd-body:hover { border: none; }
+.clawd svg { display: block; overflow: visible; }
+.clawd.flip svg { transform: scaleX(-1); }
+.clawd .shell rect { fill: var(--shell); }
+.clawd .claw rect { fill: var(--claw); }
+.clawd .legs rect { fill: var(--leg); }
+.clawd .eyes rect { fill: #1b1b1b; }
+.clawd .dots rect { fill: var(--muted); opacity: 0; }
+.clawd .eyes, .clawd .claw, .clawd .legs, .clawd .sprite { transform-box: fill-box; transform-origin: center; }
+
+/* idle: slow bob + blink */
+.clawd.mode-idle .sprite { animation: clawd-bob 2.4s ease-in-out infinite; }
+.clawd .eyes { animation: clawd-blink 4.2s infinite; }
+@keyframes clawd-bob { 50% { transform: translateY(-0.6px); } }
+@keyframes clawd-blink { 0%, 93%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.15); } }
+
+/* typing: claws tap along */
+.clawd.mode-typing .claw-l { animation: clawd-tap 0.22s steps(2) infinite alternate; }
+.clawd.mode-typing .claw-r { animation: clawd-tap 0.22s steps(2) infinite alternate-reverse; }
+@keyframes clawd-tap { to { transform: translateY(1px); } }
+
+/* walking: legs scuttle, body jitters */
+.clawd.mode-walking .legs-a { animation: clawd-step 0.16s steps(2) infinite alternate; }
+.clawd.mode-walking .legs-b { animation: clawd-step 0.16s steps(2) infinite alternate-reverse; }
+.clawd.mode-walking .sprite { animation: clawd-bob 0.32s steps(2) infinite; }
+@keyframes clawd-step { to { transform: translateY(-1px); } }
+
+/* pointing: right claw reaches toward the paragraph */
+.clawd.mode-pointing .claw-r { transform: translate(1.5px, -1px); }
+.clawd.mode-pointing .sprite { animation: clawd-bob 1.6s ease-in-out infinite; }
+
+/* thinking: eyes up, dots pulse */
+.clawd.mode-thinking .eyes { animation: none; transform: translateY(-1px); }
+.clawd.mode-thinking .claw-l { transform: translateY(-1px); }
+.clawd.mode-thinking .dots rect { animation: clawd-dot 1.2s infinite; }
+.clawd.mode-thinking .dots rect:nth-child(2) { animation-delay: 0.2s; }
+.clawd.mode-thinking .dots rect:nth-child(3) { animation-delay: 0.4s; }
+@keyframes clawd-dot { 0%, 100% { opacity: 0.15; } 40% { opacity: 1; } }
+
+.clawd-bubble {
+  pointer-events: auto;
+  position: absolute;
+  left: 58px;
+  top: -8px;
+  width: 280px;
+  background: var(--bg-3);
+  border: 1px solid var(--shell);
+  border-radius: 8px;
+  padding: 8px 10px;
+  box-shadow: 0 6px 20px #0008;
+  font-size: 13px;
+}
+.clawd.home .clawd-bubble { left: auto; right: 0; top: auto; bottom: 46px; width: 220px; }
+/* Away from home the bubble hangs below Clawd so the highlighted passage stays readable. */
+.clawd.away .clawd-bubble { left: 0; top: 46px; }
+.clawd.away.flip .clawd-bubble { left: auto; right: 0; }
+.clawd-bubble p { margin: 4px 0 6px; }
+.clawd-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
+.clawd-actions button { font-size: 12px; padding: 2px 8px; }
+.cm-clawd-spot { background: #d9775733; border-bottom: 2px dashed #d97757; }
+
+@media (prefers-reduced-motion: reduce) {
+  .clawd, .clawd * { animation: none !important; transition: none !important; }
+}
