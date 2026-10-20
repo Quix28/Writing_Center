@@ -127,3 +127,4 @@
 /* idle breathing is a touch livelier */
 .clawd.mode-idle .sprite { transform-origin: 50% 100%; animation: clawd-idle 2.2s ease-in-out infinite; }
 @keyframes clawd-idle { 50% { transform: translateY(-0.6px) scale(1.02, 0.98); } }
+.clawd.unplaced { transition: none; }

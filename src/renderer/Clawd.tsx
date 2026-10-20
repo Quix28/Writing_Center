@@ -58,6 +58,11 @@ export function Clawd({ path, onInspire, autoReview = true }: { path: string; on
   const [pos, setPos] = useState<{ x: number; y: number; flip: boolean; home?: boolean } | null>(null)
   const posRef = useRef(pos)
   posRef.current = pos
+  /** The first placement is instant; only later moves are animated (otherwise he slides in across the text). */
+  const [placed, setPlaced] = useState(false)
+  useEffect(() => {
+    if (pos && !placed) requestAnimationFrame(() => requestAnimationFrame(() => setPlaced(true)))
+  }, [pos, placed])
   const lastTyped = useRef(Date.now())
   const [spots, setSpots] = useState<Spot[]>([])
   const [index, setIndex] = useState(0)
@@ -288,7 +293,7 @@ export function Clawd({ path, onInspire, autoReview = true }: { path: string; on
 
   const style = pos ? { transform: `translate(${pos.x}px, ${pos.y}px)` } : { visibility: 'hidden' as const }
   return (
-    <div ref={host} className={`clawd mode-${mode} ${spot || !pos?.home ? 'away' : 'home'} ${pos?.flip ? 'flip' : ''}`} style={style}>
+    <div ref={host} className={`clawd mode-${mode} ${spot || !pos?.home ? 'away' : 'home'} ${pos?.flip ? 'flip' : ''} ${placed ? '' : 'unplaced'}`} style={style}>
       <button
         className="clawd-body"
         tabIndex={-1}

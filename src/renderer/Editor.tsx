@@ -4,6 +4,7 @@ import { EditorView, drawSelection, keymap } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { completionKeymap } from '@codemirror/autocomplete'
+import { highlightSelectionMatches, openSearchPanel, search, searchKeymap } from '@codemirror/search'
 import { api, errorText } from './api'
 import { toast } from './ui'
 import { livePreview, markdownStyle } from './cm/livePreview'
@@ -28,6 +29,8 @@ export const docListeners = new Set<(text: string | null) => void>()
 const notifyDoc = (text: string | null) => docListeners.forEach((f) => f(text))
 
 export const getView = () => view
+/** ⌘F from anywhere in the app: opens find & replace in the open note. */
+export const openFind = () => !!view && openSearchPanel(view)
 /** Lets the headless e2e tests read the live document. */
 Object.assign(window, { wcView: getView })
 export const currentPath = () => current
@@ -42,7 +45,9 @@ export function configureEditor(opts: { files: () => string[]; openLink: (target
     livePreview,
     wikilinkCompletion(opts.files),
     wikilinkClick(opts.openLink),
-    keymap.of([...completionKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
+    search({ top: true }),
+    highlightSelectionMatches(),
+    keymap.of([...completionKeymap, ...searchKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
     harperLinter,
     spansField,
     suggestExtensions,

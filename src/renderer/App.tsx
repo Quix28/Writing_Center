@@ -11,7 +11,7 @@ import { Clawd } from './Clawd'
 import { InspirationPanel, type InspirationState } from './InspirationPanel'
 import './clawd.css'
 import { GDocsDialogs, gdocs } from './GDocs'
-import { Editor, applyExternal, closeDoc, configureEditor, flush, flushAll, forgetDoc, hasPending, isPending, renameDocs } from './Editor'
+import { Editor, applyExternal, closeDoc, configureEditor, flush, flushAll, forgetDoc, hasPending, isPending, openFind, renameDocs } from './Editor'
 import { resolveLink } from '../shared/links'
 import { Canvas } from './Canvas'
 import { Graph } from './Graph'
@@ -236,18 +236,39 @@ export function App() {
     ...files.map((f) => ({ label: `Open: ${f}`, run: () => open(f) }))
   ]
 
+  const cycleTab = (step: 1 | -1) => {
+    const list = tabsRef.current
+    if (list.length < 2 || writeGuard()) return
+    setActive((a) => list[(list.indexOf(a ?? '') + step + list.length) % list.length])
+  }
+  const cycleTabRef = useRef(cycleTab)
+  cycleTabRef.current = cycleTab
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'p') {
         e.preventDefault()
         setPalette((p) => !p)
       }
+      // ⌃Tab / ⌃⇧Tab: next / previous tab, from anywhere (the terminal included).
+      if (e.ctrlKey && !e.metaKey && e.key === 'Tab') {
+        e.preventDefault()
+        e.stopPropagation()
+        cycleTabRef.current(e.shiftKey ? -1 : 1)
+      }
+      // ⌘F outside the editor (side panel, terminal…) still finds in the open note; inside, CodeMirror handles it.
+      if (e.metaKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'f' && !(e.target as HTMLElement).closest?.('.cm-editor')) {
+        if (openFind()) {
+          e.preventDefault()
+          e.stopPropagation()
+        }
+      }
     }
     const openConnections = () => setShowConnections(true)
-    window.addEventListener('keydown', onKey)
+    window.addEventListener('keydown', onKey, true)
     window.addEventListener('wc:open-connections', openConnections)
     return () => {
-      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('keydown', onKey, true)
       window.removeEventListener('wc:open-connections', openConnections)
     }
   }, [])

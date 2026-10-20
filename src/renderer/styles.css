@@ -313,3 +313,17 @@ details.option { display: block; }
 .side-pane > .assistant, .side-pane > .claude-term { flex: 1; min-height: 0; }
 .side-tabs { overflow-x: auto; scrollbar-width: none; }
 .side-tabs button { white-space: nowrap; }
+
+/* ---------- find & replace (⌘F) ---------- */
+.editor .cm-panels { background: var(--bg-2); color: var(--text); border-color: var(--border-soft) !important; }
+.editor .cm-panels-top { border-bottom: 1px solid var(--border-soft); }
+.editor .cm-search { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 12px; font: 13px var(--ui); }
+.editor .cm-search input.cm-textfield { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 5px; padding: 4px 8px; font: 13px var(--ui); }
+.editor .cm-search input.cm-textfield:focus { border-color: var(--accent); outline: none; }
+.editor .cm-search .cm-button { background: var(--bg-3); background-image: none; color: var(--text); border: 1px solid var(--border); border-radius: 5px; padding: 3px 9px; font: 12.5px var(--ui); }
+.editor .cm-search .cm-button:hover { background: var(--bg-4); }
+.editor .cm-search label { color: var(--text-2); display: inline-flex; align-items: center; gap: 4px; }
+.editor .cm-search button[name=close] { color: var(--muted); background: none; border: none; font-size: 18px; margin-left: auto; cursor: pointer; }
+.editor .cm-searchMatch { background: #d9b45f33; outline: 1px solid #d9b45f66; border-radius: 2px; }
+.editor .cm-searchMatch-selected { background: #9bb8d855; outline-color: var(--accent); }
+.editor .cm-selectionMatch { background: #9bb8d81f; }

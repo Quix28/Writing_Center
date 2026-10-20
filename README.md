@@ -102,7 +102,10 @@ Test-only variables (leave them unset in normal use): `WC_HEADLESS`, `WC_VAULT`,
 
 ## Using it
 
-- **⌘P** opens the command palette: files, plus every command below.
+- **Keyboard:**
+  - **⌘P** opens the command palette: files, plus every command below.
+  - **⌘F** opens find & replace in the open note, from anywhere in the app. **⌘G** / **⇧⌘G** go to the next / previous match, **Esc** closes it.
+  - **⌃Tab** / **⌃⇧Tab** go to the next / previous tab, even from inside the Claude Code terminal.
 - **File tree:** hover a row for rename/move (✎) and trash (✕). Folders get + note and + folder buttons.
 - **Wikilinks:** type `[[` to autocomplete. Click a rendered link, or ⌘-click anywhere, to open it. A link to a note that doesn't exist creates that note.
 - **Canvas:** use the **Canvas** button or *New canvas (mind map)*.
@@ -173,7 +176,8 @@ Test-only variables (leave them unset in normal use): `WC_HEADLESS`, `WC_VAULT`,
 | The packaged **Writing Centre.app** passes every e2e suite above | `WC_APP=… npm run e2e` |
 | Headless tests never touch the real macOS Keychain (Chromium mock keychain) | checked with a throwaway app name |
 | Claude Code tab: real terminal (node-pty + xterm.js) in the vault folder; typing, **Ask about this note**, the session surviving tab switches; the panel widening; Clawd staying in the editor area; side-panel tabs keeping their state; AI check highlighting low scores too | `test/e2e-phase12-terminal.mjs` (stand-in `claude`) |
-| **Real** Claude Code starts in the app's terminal (banner, model, plan, prompt) | headless run + screenshot |
+| **Real** Claude Code starts in the app's terminal (banner, model, plan, prompt), including with a Finder-like bare PATH | headless runs + screenshot |
+| ⌘F find (in the editor and from elsewhere) highlights matches; ⌃Tab / ⌃⇧Tab cycle and wrap, also from the terminal | `test/e2e-phase13-keys.mjs` |
 | Every file type is listed; PNG, PDF (built-in viewer), `.docx` (sandboxed) and `.pptx` (slide text) open; unknown types offer the default app; `vault://` refuses paths outside the vault | `test/e2e-phase8-files.mjs` (files generated with macOS tools) |
 | AI check: two separate scores, per-paragraph scores from both, highlights by either source, tells become suggest-mode rewrites | `test/e2e-phase9-aicheck.mjs` (mock detector by default) |
 | **Real** SlopTotal: installed, started by the app on 127.0.0.1, scored a note, and stopped when the app quit | `WC_REAL_DETECTOR=1 node test/e2e-phase9-aicheck.mjs` |
