@@ -6,14 +6,16 @@ import { applyEdits, propose, streamInto, targetRange } from './cm/suggest'
 
 type Msg = ChatTurn & { note?: string }
 
-export function ModelPicker() {
+/** Reloads the model list when the Claude connection changes (API models vs Claude Code aliases). */
+export function ModelPicker({ authMethod }: { authMethod?: string }) {
   const [models, setModels] = useState<{ id: string; name: string }[]>([])
   const [model, setModel] = useState('')
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
+    setError(null)
     api.settings.get().then((s) => setModel(s.model))
     api.claude.models().then(setModels, (e) => setError(errorText(e)))
-  }, [])
+  }, [authMethod])
   const options = models.some((m) => m.id === model) ? models : [{ id: model, name: model }, ...models]
   if (error)
     return (
@@ -40,7 +42,7 @@ export function ModelPicker() {
   )
 }
 
-export function AssistantPanel({ path }: { path: string | null }) {
+export function AssistantPanel({ path, authMethod }: { path: string | null; authMethod?: string }) {
   const [mode, setMode] = useState<'suggest' | 'write'>('suggest')
   const [msgs, setMsgs] = useState<Msg[]>([])
   const [input, setInput] = useState('')
@@ -94,7 +96,7 @@ export function AssistantPanel({ path }: { path: string | null }) {
 
   return (
     <div className="assistant">
-      <ModelPicker />
+      <ModelPicker authMethod={authMethod} />
       <div className="mode-toggle" role="radiogroup" aria-label="Assistant mode">
         <button className={mode === 'suggest' ? 'active' : ''} onClick={() => setMode('suggest')} aria-checked={mode === 'suggest'} role="radio">Suggest</button>
         <button className={mode === 'write' ? 'active' : ''} onClick={() => setMode('write')} aria-checked={mode === 'write'} role="radio">Write</button>

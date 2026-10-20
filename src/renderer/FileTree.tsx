@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { TreeNode } from './api'
-import { Icon } from './icons'
+import { Icon, type IconName } from './icons'
+import { fileKind } from './FileViewer'
 
 type Props = {
   nodes: TreeNode[]
@@ -17,9 +18,16 @@ export const DRAG_TYPE = 'application/x-vault-path'
 
 const label = (n: TreeNode) => (n.dir ? n.name : n.name.replace(/\.md$/, ''))
 
+export function iconFor(node: { name: string; dir?: boolean }, open = false): IconName {
+  if (node.dir) return open ? 'folderOpen' : 'folder'
+  if (/\.(md|txt)$/i.test(node.name)) return 'note'
+  if (node.name.endsWith('.canvas')) return 'canvas'
+  return ({ image: 'image', pdf: 'pdf', docx: 'note', pptx: 'slides', other: 'file' } as const)[fileKind(node.name)]
+}
+
 function Row({ node, depth, ...p }: Props & { node: TreeNode; depth: number }) {
   const [open, setOpen] = useState(true)
-  const icon = node.dir ? (open ? 'folderOpen' : 'folder') : node.name.endsWith('.canvas') ? 'canvas' : 'note'
+  const icon = iconFor(node, open)
   return (
     <>
       <div
@@ -52,7 +60,7 @@ export function FileTree(p: Props & { vaultName: string; onPickVault: () => void
   return (
     <nav className="tree" aria-label="Vault files">
       <div className="vault-head">
-        <button className="vault-name" onClick={p.onPickVault} title="Open a different vault folder">
+        <button className="vault-name" onClick={p.onPickVault} title={`${p.vaultName}: open a different vault folder`}>
           <Icon name="vault" />
           <span>{p.vaultName}</span>
         </button>

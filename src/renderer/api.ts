@@ -1,9 +1,10 @@
 import type { TreeNode, VaultEvent } from '../main/vault'
 import type { Settings } from '../main/settings'
-import type { ChatTurn, ClaudeStatus, Edit, Finding, Inspiration } from '../main/claude'
+import type { AiTells, ChatTurn, ClaudeStatus, Edit, Finding, Inspiration } from '../main/claude'
+import type { DetectorResult } from '../main/detector'
 import type { DocMeta, GoogleStatus } from '../main/gdocs'
 
-export type { TreeNode, VaultEvent, Settings, ChatTurn, Edit, Finding, Inspiration, DocMeta, ClaudeStatus, GoogleStatus }
+export type { TreeNode, VaultEvent, Settings, ChatTurn, Edit, Finding, Inspiration, DocMeta, ClaudeStatus, GoogleStatus, AiTells, DetectorResult }
 
 type Api = {
   vault: {
@@ -25,6 +26,7 @@ type Api = {
     write(id: string, a: { path: string; text: string; target: string; instruction: string; history: ChatTurn[] }): Promise<string>
     abort(id: string): Promise<void>
     inspire(a: { passage: string; issue: string }): Promise<Inspiration[]>
+    aiTells(text: string): Promise<AiTells>
     status(): Promise<ClaudeStatus>
     login(): Promise<ClaudeStatus>
     setKey(key: string): Promise<ClaudeStatus>
@@ -42,6 +44,15 @@ type Api = {
     status(): Promise<GoogleStatus>
     saveClient(clientId: string, clientSecret: string): Promise<GoogleStatus>
     connect(): Promise<GoogleStatus>
+  }
+  detector: {
+    status(): Promise<{ installed: boolean; running: boolean; firstRun: boolean }>
+    score(text: string): Promise<DetectorResult>
+  }
+  files: {
+    docx(path: string): Promise<string>
+    pptx(path: string): Promise<{ slide: number; lines: string[] }[]>
+    open(path: string): Promise<void>
   }
   settings: {
     get(): Promise<Settings>

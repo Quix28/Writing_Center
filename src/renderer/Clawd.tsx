@@ -5,13 +5,17 @@ import { getView, typingListeners } from './Editor'
 import { setSpans } from './cm/spans'
 import { inReview, isWriting, propose } from './cm/suggest'
 
-type Mode = 'idle' | 'typing' | 'walking' | 'pointing' | 'thinking'
+type Mode = 'idle' | 'typing' | 'walking' | 'pointing' | 'thinking' | 'hanging'
 type Spot = Finding & { at: number }
 
 const IDLE_REVIEW_MS = 8000
 const MIN_GAP_MS = 60_000
 const WALK_MS = 1200
 const SIZE = 48
+/** Idle life: after this long without typing, Clawd starts wandering or hangs from a line now and then. */
+const QUIET_BEFORE_WANDER_MS = 20_000
+const WANDER_EVERY_MS = [15_000, 25_000] as const
+const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 /** Original pixel-art crab on a 16×13 grid. Groups are animated from clawd.css. */
 function Sprite() {
@@ -37,7 +41,10 @@ const noFocus = (e: MouseEvent) => e.preventDefault()
 /** `autoReview: false` (subscription mode) means Clawd only reviews when clicked, to spare plan usage limits. */
 export function Clawd({ path, onInspire, autoReview = true }: { path: string; onInspire: (a: { passage: string; issue: string }) => Promise<void>; autoReview?: boolean }) {
   const [mode, setMode] = useState<Mode>('idle')
-  const [pos, setPos] = useState<{ x: number; y: number; flip: boolean } | null>(null)
+  const [pos, setPos] = useState<{ x: number; y: number; flip: boolean; home?: boolean } | null>(null)
+  const posRef = useRef(pos)
+  posRef.current = pos
+  const lastTyped = useRef(Date.now())
   const [spots, setSpots] = useState<Spot[]>([])
   const [index, setIndex] = useState(0)
   const [note, setNote] = useState<string | null>(null)
@@ -48,6 +55,8 @@ export function Clawd({ path, onInspire, autoReview = true }: { path: string; on
   const modeRef = useRef(mode)
   modeRef.current = mode
   const spot = spots[index]
+  const spotsRef = useRef(spots)
+  spotsRef.current = spots
 
   const say = (text: string) => {
     setNote(text)
@@ -69,7 +78,7 @@ export function Clawd({ path, onInspire, autoReview = true }: { path: string; on
 
   const home = useCallback(() => {
     const a = host.current?.parentElement?.getBoundingClientRect()
-    return a ? { x: a.width - SIZE - 24, y: a.height - SIZE - 24, flip: false } : null
+    return a ? { x: a.width - SIZE - 24, y: a.height - SIZE - 24, flip: false, home: true } : null
   }, [])
 
   const goTo = useCallback(
@@ -98,7 +107,7 @@ export function Clawd({ path, onInspire, autoReview = true }: { path: string; on
   const review = useCallback(
     async (byClick: boolean) => {
       const view = getView()
-      if (!view || modeRef.current === 'thinking' || modeRef.current === 'walking' || modeRef.current === 'pointing') return
+      if (!view || modeRef.current === 'thinking' || modeRef.current === 'pointing' || spotsRef.current.length) return
       if (inReview(view.state) || isWriting()) return byClick ? say('Finish the open suggestion first.') : undefined
       const wait = MIN_GAP_MS - (Date.now() - lastReview.current)
       if (wait > 0) return byClick ? say(`Give me ${Math.ceil(wait / 1000)}s to rest my claws…`) : undefined
@@ -130,6 +139,7 @@ export function Clawd({ path, onInspire, autoReview = true }: { path: string; on
 
   useEffect(() => {
     const onType = () => {
+      lastTyped.current = Date.now()
       clearTimeout(idleTimer.current)
       if (autoReview) idleTimer.current = setTimeout(() => review(false), IDLE_REVIEW_MS)
       if (modeRef.current !== 'idle' && modeRef.current !== 'typing') return
@@ -145,6 +155,59 @@ export function Clawd({ path, onInspire, autoReview = true }: { path: string; on
     }
   }, [review, autoReview])
 
+  /** Somewhere to hang: the end of a random visible line, claws on the line, body dangling below. */
+  const hangSpot = useCallback(() => {
+    const view = getView()
+    const area = host.current?.parentElement?.getBoundingClientRect()
+    if (!view || !area) return null
+    const doc = view.state.doc
+    const lines: number[] = []
+    for (const { from, to } of view.visibleRanges)
+      for (let n = doc.lineAt(from).number; n <= doc.lineAt(to).number; n++) if (doc.line(n).text.trim().length > 12) lines.push(n)
+    if (!lines.length) return null
+    const line = doc.line(lines[Math.floor(Math.random() * lines.length)])
+    const c = view.coordsAtPos(line.to)
+    if (!c || c.bottom > area.bottom - SIZE || c.top < area.top + 40) return null
+    return { x: Math.min(Math.max(c.left - area.left - SIZE / 2, 8), area.width - SIZE - 8), y: c.bottom - area.top - 3 }
+  }, [])
+
+  /** Somewhere to stroll: the side margins if the window is wide, otherwise along the bottom. */
+  const wanderSpot = useCallback(() => {
+    const view = getView()
+    const area = host.current?.parentElement?.getBoundingClientRect()
+    if (!view || !area) return null
+    const content = view.contentDOM.getBoundingClientRect()
+    const margin = content.left - area.left
+    const rand = (a: number, b: number) => a + Math.random() * Math.max(b - a, 0)
+    if (margin > SIZE + 24 && Math.random() < 0.6) {
+      const left = Math.random() < 0.5
+      return { x: left ? rand(8, margin - SIZE - 12) : rand(content.right - area.left + 12, area.width - SIZE - 8), y: rand(70, area.height - SIZE - 30) }
+    }
+    return { x: rand(16, area.width - SIZE - 16), y: area.height - SIZE - 24 }
+  }, [])
+
+  useEffect(() => {
+    if (reducedMotion()) return
+    let timer: ReturnType<typeof setTimeout>
+    const act = () => {
+      const quiet = Date.now() - lastTyped.current > QUIET_BEFORE_WANDER_MS
+      if (quiet && (modeRef.current === 'idle' || modeRef.current === 'hanging') && !spotsRef.current.length) {
+        const roll = Math.random()
+        const hang = roll < 0.45 ? hangSpot() : null
+        const target = hang ?? (roll < 0.85 ? wanderSpot() : home())
+        if (target) {
+          const from = posRef.current
+          setPos({ ...target, flip: !!from && target.x < from.x })
+          setMode('walking')
+          setTimeout(() => setMode((m) => (m === 'walking' ? (hang ? 'hanging' : 'idle') : m)), WALK_MS)
+        }
+      }
+      timer = setTimeout(act, WANDER_EVERY_MS[0] + Math.random() * (WANDER_EVERY_MS[1] - WANDER_EVERY_MS[0]))
+    }
+    timer = setTimeout(act, WANDER_EVERY_MS[0])
+    return () => clearTimeout(timer)
+  }, [hangSpot, wanderSpot, home])
+
   useEffect(() => {
     setSpots([])
     setPos(home())
@@ -156,7 +219,10 @@ export function Clawd({ path, onInspire, autoReview = true }: { path: string; on
     const view = getView()
     if (!view) return
     const follow = () => {
-      if (!spot) return setPos(home())
+      if (!spot) {
+        setMode((m) => (m === 'hanging' ? 'idle' : m))
+        return setPos(home())
+      }
       const at = view.state.doc.toString().indexOf(spot.quote)
       if (at >= 0) setPos(place(at))
     }
@@ -185,7 +251,7 @@ export function Clawd({ path, onInspire, autoReview = true }: { path: string; on
 
   const style = pos ? { transform: `translate(${pos.x}px, ${pos.y}px)` } : { visibility: 'hidden' as const }
   return (
-    <div ref={host} className={`clawd mode-${mode} ${spot ? 'away' : 'home'} ${pos?.flip ? 'flip' : ''}`} style={style}>
+    <div ref={host} className={`clawd mode-${mode} ${spot || !pos?.home ? 'away' : 'home'} ${pos?.flip ? 'flip' : ''}`} style={style}>
       <button
         className="clawd-body"
         tabIndex={-1}

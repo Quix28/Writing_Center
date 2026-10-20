@@ -30,15 +30,17 @@ function workdir() {
   return dir
 }
 
-function runClaude(args: string[], opts: { stdin?: string; id?: string; onLine?: (line: string) => void; timeoutMs?: number } = {}) {
+/** `finished()` lets a caller end the run once its result arrived: hooks or plugins in a full session can keep the process alive. */
+function runClaude(args: string[], opts: { stdin?: string; id?: string; onLine?: (line: string) => void; finished?: () => boolean; timeoutMs?: number; cwd?: string } = {}) {
   const bin = findClaude()
   if (!bin) return Promise.reject(new Error('Claude Code is not installed. Install it from claude.com/code, then sign in.'))
   return new Promise<string>((resolve, reject) => {
-    const child = spawn(bin, args, { cwd: workdir(), env: cleanEnv(), stdio: ['pipe', 'pipe', 'pipe'] })
+    const child = spawn(bin, args, { cwd: opts.cwd ?? workdir(), env: cleanEnv(), stdio: ['pipe', 'pipe', 'pipe'] })
     let out = ''
     let err = ''
     let buffer = ''
     let aborted = false
+    let settled = false
     if (opts.id) active.set(opts.id, () => ((aborted = true), child.kill()))
     const timer = opts.timeoutMs ? setTimeout(() => child.kill(), opts.timeoutMs) : undefined
     child.stdout.on('data', (d: Buffer) => {
@@ -48,11 +50,19 @@ function runClaude(args: string[], opts: { stdin?: string; id?: string; onLine?:
       const lines = buffer.split('\n')
       buffer = lines.pop()!
       for (const line of lines) if (line.trim()) opts.onLine(line)
+      if (!settled && opts.finished?.()) {
+        settled = true
+        if (opts.id) active.delete(opts.id)
+        clearTimeout(timer)
+        resolve(out)
+        child.kill()
+      }
     })
     child.stderr.on('data', (d) => (err += d))
     child.on('error', reject)
     child.on('close', (code) => {
       clearTimeout(timer)
+      if (settled) return
       if (opts.id) active.delete(opts.id)
       if (aborted) return reject(new Error('Cancelled.'))
       if (buffer.trim()) opts.onLine?.(buffer)
@@ -85,18 +95,28 @@ function friendly(message: string): Error {
   return new Error(message)
 }
 
-/** One headless Claude Code turn with no tools (or only WebSearch), your settings and hooks left out. */
-export async function run(req: { model: string; system: string; prompt: string; schema?: object; web?: boolean; id?: string; onText?: (t: string) => void }): Promise<CodeResult> {
+/** Your full Claude Code: global CLAUDE.md, user settings, plugins, hooks and skills, with the tools listed here. */
+export type FullSession = { cwd: string; tools: string[] }
+
+/** The app's own output rules, stated with operator authority so personal response-format rules don't end up in a note. */
+const OUTPUT_CONTRACT =
+  'OUTPUT CONTRACT (from the Writing Centre app; it overrides any response-format rule such as required prefixes, "Answer:", or terse/caveman styles): what you return is shown to the writer or inserted into their document as is. Write normal prose, with no prefix, label or preamble.'
+
+/**
+ * One headless Claude Code turn. By default isolated (no tools or only WebSearch; your settings, hooks and
+ * CLAUDE.md left out). With `full`, it runs as your normal Claude Code session in the vault folder.
+ */
+export async function run(req: { model: string; system: string; prompt: string; schema?: object; web?: boolean; id?: string; onText?: (t: string) => void; full?: FullSession }): Promise<CodeResult> {
+  const tools = req.full ? req.full.tools : req.web ? ['WebSearch'] : []
   const args = [
     '-p',
     '--model', req.model,
-    '--setting-sources=',
+    ...(req.full ? [] : ['--setting-sources=', '--disable-slash-commands']),
     '--strict-mcp-config',
-    '--disable-slash-commands',
     '--no-session-persistence',
-    `--tools=${req.web ? 'WebSearch' : ''}`,
-    ...(req.web ? ['--allowedTools=WebSearch'] : []),
-    '--system-prompt', req.system,
+    `--tools=${tools.join(',')}`,
+    ...(tools.length ? [`--allowedTools=${tools.join(',')}`] : []),
+    ...(req.full ? ['--append-system-prompt', `${req.system}\n\n${OUTPUT_CONTRACT}`] : ['--system-prompt', req.system]),
     '--output-format', 'stream-json',
     '--verbose',
     ...(req.onText ? ['--include-partial-messages'] : []),
@@ -107,6 +127,8 @@ export async function run(req: { model: string; system: string; prompt: string; 
   await runClaude(args, {
     stdin: req.prompt,
     id: req.id,
+    cwd: req.full?.cwd,
+    finished: () => !!done.event,
     onLine: (line) => {
       let ev: any
       try {

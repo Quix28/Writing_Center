@@ -1,11 +1,14 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, protocol, shell } from 'electron'
 import { join } from 'node:path'
 import * as vault from './vault'
 import { loadSettings, saveSettings, type Settings } from './settings'
 import * as claude from './claude'
 import * as gdocs from './gdocs'
+import * as files from './files'
+import * as detector from './detector'
 
 if (process.env.WC_USER_DATA) app.setPath('userData', process.env.WC_USER_DATA)
+protocol.registerSchemesAsPrivileged([files.VAULT_SCHEME])
 /** Tests run with WC_HEADLESS=1: window never shown, no Dock icon, never takes focus. */
 const headless = process.env.WC_HEADLESS === '1'
 // Tests must never touch the user's real Keychain (or trigger its password prompt).
@@ -61,6 +64,9 @@ handle('vault:create', vault.create)
 handle('vault:move', vault.move)
 handle('vault:trash', async (rel: string) => shell.trashItem(await vault.pathFor(rel)))
 handle('vault:notes', vault.readAllNotes)
+handle('files:docx', files.docxHtml)
+handle('files:pptx', files.pptxOutline)
+handle('files:open', files.openExternal)
 handle('settings:get', loadSettings)
 /** The renderer may change only these; the vault changes through the native folder picker, auth through Connections. */
 handle('settings:set', (patch: Partial<Settings>) => {
@@ -75,6 +81,9 @@ handle('claude:suggest', claude.suggest)
 handle('claude:write', (id: string, args) => claude.write(id, args, (text) => win.webContents.send('claude:delta', { id, text })))
 handle('claude:abort', claude.abort)
 handle('claude:inspire', claude.inspire)
+handle('claude:aiTells', claude.aiTells)
+handle('detector:status', detector.status)
+handle('detector:score', detector.score)
 handle('gdocs:meta', gdocs.meta)
 handle('gdocs:list', gdocs.list)
 handle('gdocs:create', gdocs.create)
@@ -92,6 +101,7 @@ handle('claude:useSubscription', claude.useSubscription)
 
 app.whenReady().then(() => {
   if (headless && process.platform === 'darwin') app.setActivationPolicy('accessory')
+  files.registerVaultProtocol()
   createWindow()
 })
 app.on('window-all-closed', () => app.quit())

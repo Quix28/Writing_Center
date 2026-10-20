@@ -17,6 +17,23 @@ The app is signed locally (ad-hoc), not notarized by Apple. It runs on the Mac t
 
 On first launch, click **Open a vault folder** and pick any folder of markdown files. An existing Obsidian vault works. The app remembers the choice.
 
+### Local AI detector (optional)
+
+The **AI check** panel shows two separate scores: Claude's reading of how AI-written the prose sounds, and a score from **SlopTotal**, an open-source detector that runs entirely on your Mac.
+
+To install SlopTotal, run this once:
+
+```bash
+zsh scripts/install-detector.sh
+```
+
+- It goes into `~/Library/Application Support/writing-centre/sloptotal`, pinned to commit `adc3116`, using `uv` and Python 3.11.
+- It takes about 0.8 GB of Python packages, plus about 3.8 GB of models downloaded on the first check. That first check takes a few minutes.
+- The app starts the detector only when you run a check:
+  - It listens only on `127.0.0.1`, in the lite profile (about 4 GB of RAM).
+  - It stops after 10 idle minutes, or when you quit.
+  - Your text never leaves the Mac.
+
 ### Connecting Claude and Google
 
 Click the **Claude** or **Google Docs** dot in the status bar (bottom left), or run *Connections* from ⌘P.
@@ -26,7 +43,13 @@ Click the **Claude** or **Google Docs** dot in the status bar (bottom left), or 
 - **Use my Claude subscription** (recommended if you have Pro, Max or Team)
   - Every AI request runs through your own Claude Code (`claude -p`, its documented headless mode).
   - Usage counts against your plan's limits, so there's no API bill.
-  - It runs from an empty folder with your Claude Code settings, hooks, plugins and MCP servers left out, and with no API keys passed in. Your personal Claude Code setup doesn't change the app's output, and the app doesn't change your setup.
+  - **The Assistant runs as your normal Claude Code session.** It has your global CLAUDE.md, user settings, plugins, hooks and skills, and its working folder is the vault.
+    - In Suggest mode it has read-only tools only: Read, Glob, Grep, Skill, WebSearch and WebFetch. Edit, Write and Bash are left out, so it can't change files.
+    - In Write mode it has no tools, so only the rewrite streams into your note.
+    - An app instruction keeps personal response-format rules (such as a required prefix) out of the note. This was checked against a real CLAUDE.md with an "Answer:" rule.
+    - MCP servers are left out to keep each request fast.
+  - Review, Clawd, AI check and Find inspiration run in an isolated mode: an empty folder, no settings, hooks, plugins or MCP servers, and no API keys. That keeps them fast and predictable.
+  - If a hook or plugin keeps Claude Code running after it has answered, the app takes the answer and stops the process.
   - If Claude Code isn't signed in, the button runs `claude auth login`, which opens claude.ai in your browser.
   - In this mode **Clawd only reviews when you click him**, to save your limits. The model picker offers Sonnet, Opus and Haiku; Sonnet is the default.
   - This is meant for your own use on your own Mac. Anthropic doesn't allow apps to offer subscription login to other people.
@@ -88,13 +111,23 @@ Test-only variables (leave them unset in normal use): `WC_HEADLESS`, `WC_VAULT`,
   - Drag between the side handles to draw an edge.
   - Double-click a note card to open the note.
   - Backspace deletes the selection.
+- **Any file in the vault:** the tree lists everything except dotfiles.
+  - Notes (`.md`, `.txt`) open in the editor and canvases (`.canvas`) open as mind maps.
+  - PDFs open in the built-in PDF viewer. Images display directly.
+  - `.docx` files are converted with macOS `textutil` and shown read-only, in a frame that can't run scripts.
+  - `.pptx` files show the text of each slide.
+  - Anything else gets an **Open in default app** button.
+- **AI check:** the **AI check** tab, or ⌘P → *AI check*.
+  - Shows two independent scores (Claude and the local detector), a score for each paragraph from both, and highlights coloured by whichever score you pick.
+  - Claude also lists the clearest tells, each with **Propose rewrite**.
+  - Neither score proves who wrote a text.
 - **Graph:** the **Graph** button. It's built from `[[wikilinks]]`; click a note to open it.
 - **Review content:** palette command or the **Review** tab. Click a quote to jump to it in the editor. **Propose fix** opens the fix as a suggestion diff.
 - **Assistant:** in the **Assistant** tab.
   - Pick the Claude model at the top. The choice is saved and used by every AI feature.
   - **Suggest** mode shows Claude's proposals as an inline diff with Accept/Reject on each change. Only accepted text is written to disk.
   - **Write** mode rewrites the selection, or the section under the cursor, and streams it into the editor. One ⌘Z undoes it.
-- **Clawd:** the crab in the bottom-right corner.
+- **Clawd:** the crab in the bottom-right corner. Once you've stopped typing for 20 seconds, he wanders the margins or walks over and hangs from the end of a line, swinging from his claws. He never takes focus, and reduced-motion settings turn this off.
   - He reviews what's on screen after 8 seconds without typing, or when you click him. At most once a minute.
   - Turn him on or off with the **Clawd on/off** button.
 - **Google Docs:** palette commands *Link to a new doc*, *Link to an existing doc…*, *Push note → Doc*, *Pull Doc → note*, *Sign out*.
@@ -127,6 +160,11 @@ Test-only variables (leave them unset in normal use): `WC_HEADLESS`, `WC_VAULT`,
 | **Real** subscription run: a Review through the actual Claude Code login returned correct findings with exact quotes | one manual headless run on Haiku |
 | The packaged **Writing Centre.app** passes every e2e suite above | `WC_APP=… npm run e2e` |
 | Headless tests never touch the real macOS Keychain (Chromium mock keychain) | checked with a throwaway app name |
+| Every file type is listed; PNG, PDF (built-in viewer), `.docx` (sandboxed) and `.pptx` (slide text) open; unknown types offer the default app; `vault://` refuses paths outside the vault | `test/e2e-phase8-files.mjs` (files generated with macOS tools) |
+| AI check: two separate scores, per-paragraph scores from both, highlights by either source, tells become suggest-mode rewrites | `test/e2e-phase9-aicheck.mjs` (mock detector by default) |
+| **Real** SlopTotal: installed, started by the app on 127.0.0.1, scored a note, and stopped when the app quit | `WC_REAL_DETECTOR=1 node test/e2e-phase9-aicheck.mjs` |
+| **Real** Assistant as a full Claude Code session (your CLAUDE.md, hooks, skills): Suggest returned a diff; Write streamed clean prose with no "Answer:" prefix | manual headless runs on Haiku |
+| Clawd wanders and hangs from a line when idle | headless observation + screenshot |
 
 ### Untested
 
@@ -182,6 +220,9 @@ Test-only variables (leave them unset in normal use): `WC_HEADLESS`, `WC_VAULT`,
   - He reviews only the visible text, without linked notes.
   - If the same sentence appears twice, he points at the first copy.
   - **Apply** waits if another suggestion diff is still open.
+- **AI detection is unreliable.** In testing, a deliberately AI-sounding sentence got only 40/100 from the local detector. Treat both scores as hints.
+- **Office files:** `.docx` loses images. `.pptx` shows text only, without layout or pictures. Older `.ppt` and `.doc` open only in the default app.
+- **One of your Claude Code plugins** reports a Stop-hook error after each run. The app ignores it, but you might want to check your plugins.
 - **Find inspiration:** quality depends on Claude's web search. If none of the returned items has a URL from the search results, you get an error instead of a list.
 - **Keychain:** the Google token uses Electron `safeStorage` instead of `keytar`. Approved during planning, because keytar is archived and needs native rebuilds.
 - The `.app` is ad-hoc signed and not notarized. It runs on the Mac that built it. There's no auto-update; rebuild with `npm run app`.

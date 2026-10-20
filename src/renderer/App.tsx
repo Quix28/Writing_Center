@@ -18,6 +18,9 @@ import { Graph } from './Graph'
 import { Connections, type ConnectionState } from './Connections'
 import { StatusBar } from './StatusBar'
 import { Icon } from './icons'
+import { FileViewer } from './FileViewer'
+import { AiCheckPanel } from './AiCheckPanel'
+import { iconFor } from './FileTree'
 
 const GRAPH = '::graph'
 
@@ -44,6 +47,7 @@ export function App() {
   const [conn, setConn] = useState<ConnectionState>({})
   const [showConnections, setShowConnections] = useState(false)
   const [reviewTrigger, setReviewTrigger] = useState(0)
+  const [aiTrigger, setAiTrigger] = useState(0)
   const [clawdOn, setClawdOn] = useState(false)
   const [inspo, setInspo] = useState<InspirationState | null>(null)
   const files = useMemo(() => flatten(tree), [tree])
@@ -195,6 +199,7 @@ export function App() {
     { label: 'Open graph view', run: () => open(GRAPH) },
     { label: 'Toggle side panel', run: () => setSideOpen((s) => !s) },
     { label: 'Review content (Claude)', run: () => (setSideOpen(true), setSideTab('review'), setReviewTrigger((n) => n + 1)) },
+    { label: 'AI check: score this note (Claude + local detector)', run: () => (setSideOpen(true), setSideTab('aicheck'), setAiTrigger((n) => n + 1)) },
     { label: 'Open writing assistant', run: () => (setSideOpen(true), setSideTab('assistant')) },
     { label: clawdOn ? 'Turn Clawd off' : 'Turn Clawd on', run: toggleClawd },
     ...(active?.endsWith('.md')
@@ -239,12 +244,13 @@ export function App() {
     )
 
   const tabLabel = (t: string) => (t === GRAPH ? 'Graph' : t.split('/').pop()!.replace(/\.(md|canvas)$/, ''))
-  const tabIcon = (t: string) => (t === GRAPH ? 'graph' : t.endsWith('.canvas') ? 'canvas' : 'note') as 'graph' | 'canvas' | 'note'
+  const tabIcon = (t: string) => (t === GRAPH ? 'graph' : iconFor({ name: t }))
+  const isText = (t: string | null) => !!t && /\.(md|txt)$/i.test(t)
 
   return (
     <div className={`shell ${sideOpen ? '' : 'no-side'}`}>
       <FileTree
-        vaultName={vault.split('/').pop() || vault}
+        vaultName={vault.replace(/\/+$/, '').split('/').pop() || vault}
         onPickVault={pickVault}
         nodes={tree}
         active={active}
@@ -265,8 +271,9 @@ export function App() {
             </div>
           ))}
         </div>
-        {active?.endsWith('.md') && <Editor path={active} />}
-        {active?.endsWith('.md') && clawdOn && <Clawd path={active} onInspire={inspire} autoReview={conn.claude?.method !== 'subscription'} />}
+        {isText(active) && <Editor path={active!} />}
+        {active && active !== GRAPH && !isText(active) && !active.endsWith('.canvas') && <FileViewer path={active} />}
+        {isText(active) && clawdOn && <Clawd path={active!} onInspire={inspire} autoReview={conn.claude?.method !== 'subscription'} />}
         {active?.endsWith('.canvas') && <Canvas path={active} notes={notes} onOpen={open} />}
         {active === GRAPH && <Graph notes={notes} files={files} onOpen={open} />}
         {!active && (
@@ -283,7 +290,8 @@ export function App() {
           tabs={[
             { id: 'backlinks', label: 'Backlinks', render: () => <Backlinks active={active} notes={notes} files={files} onOpen={open} /> },
             { id: 'review', label: 'Review', render: () => <ReviewPanel path={active} trigger={reviewTrigger} /> },
-            { id: 'assistant', label: 'Assistant', render: () => <AssistantPanel key={conn.claude?.method} path={active} /> },
+            { id: 'aicheck', label: 'AI check', render: () => <AiCheckPanel path={active} trigger={aiTrigger} /> },
+            { id: 'assistant', label: 'Assistant', render: () => <AssistantPanel path={active} authMethod={conn.claude?.method} /> },
             { id: 'inspiration', label: 'Inspiration', render: () => <InspirationPanel state={inspo} /> }
           ]}
         />

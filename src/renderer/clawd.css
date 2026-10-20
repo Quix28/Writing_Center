@@ -74,3 +74,9 @@
 @media (prefers-reduced-motion: reduce) {
   .clawd, .clawd * { animation: none !important; transition: none !important; }
 }
+
+/* hanging: claws grip the line above, body swings from them, legs dangle */
+.clawd.mode-hanging .sprite { transform-origin: 50% 0; animation: clawd-swing 3.2s ease-in-out infinite; }
+.clawd.mode-hanging .legs-a { transform: translateY(0.6px); }
+.clawd.mode-hanging .eyes { animation: clawd-blink 3.1s infinite; }
+@keyframes clawd-swing { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }

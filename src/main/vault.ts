@@ -5,6 +5,9 @@ import { watch, type FSWatcher } from 'chokidar'
 export type TreeNode = { name: string; path: string; dir: boolean; children?: TreeNode[] }
 export type VaultEvent = { type: 'tree' } | { type: 'change'; path: string; content: string } | { type: 'unlink'; path: string }
 
+/** Files the app opens as text; everything else (PDF, images, Office files…) is only viewed. */
+export const TEXT_FILE = /\.(md|txt|canvas)$/i
+
 let root: string | null = null
 let watcher: FSWatcher | null = null
 const lastWritten = new Map<string, string>()
@@ -54,6 +57,7 @@ export async function openVault(dir: string, onEvent: (e: VaultEvent) => void) {
   })
   watcher.on('change', async (p) => {
     const path = rel(p)
+    if (!TEXT_FILE.test(path)) return
     const content = await readFile(p, 'utf8').catch(() => null)
     if (content === null || lastWritten.get(path) === content) return
     onEvent({ type: 'change', path, content })
@@ -67,7 +71,7 @@ async function walk(dir: string, rel: string): Promise<TreeNode[]> {
     if (e.name.startsWith('.')) continue
     const path = rel ? `${rel}/${e.name}` : e.name
     if (e.isDirectory()) nodes.push({ name: e.name, path, dir: true, children: await walk(join(dir, e.name), path) })
-    else if (/\.(md|canvas)$/.test(e.name)) nodes.push({ name: e.name, path, dir: false })
+    else nodes.push({ name: e.name, path, dir: false })
   }
   return nodes.sort((a, b) => Number(b.dir) - Number(a.dir) || a.name.localeCompare(b.name))
 }

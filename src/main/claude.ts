@@ -232,17 +232,24 @@ const viaCode = () => method() === 'subscription'
 const fold = (messages: ChatTurn[]) =>
   messages.map((m) => (m.role === 'user' ? m.content : `<your_previous_reply>\n${m.content}\n</your_previous_reply>`)).join('\n\n')
 
-async function structured<T>(system: string, messages: ChatTurn[], schema: { [key: string]: unknown }): Promise<T> {
+/** The Assistant runs as the writer's own Claude Code session (CLAUDE.md, skills, hooks) in the vault folder. */
+const READ_ONLY_TOOLS = ['Read', 'Glob', 'Grep', 'Skill', 'WebSearch', 'WebFetch']
+const session = (tools: string[]): code.FullSession | undefined => {
+  const root = vault.getRoot()
+  return root ? { cwd: root, tools } : undefined
+}
+
+async function structured<T>(system: string, messages: ChatTurn[], schema: { [key: string]: unknown }, full?: code.FullSession): Promise<T> {
   if (viaCode()) {
-    const r = await code.run({ model: model(), system, prompt: fold(messages), schema })
+    const r = await code.run({ model: model(), system, prompt: fold(messages), schema, full })
     if (r.structured === undefined) throw new Error('Claude returned no structured result. Try again.')
     return r.structured as T
   }
   return json<T>(await run({ system, messages, output_config: { format: { type: 'json_schema', schema } } }))
 }
 
-async function streamed(id: string, system: string, messages: ChatTurn[], onText: (t: string) => void): Promise<string> {
-  if (viaCode()) return (await code.run({ model: model(), system, prompt: fold(messages), id, onText })).text
+async function streamed(id: string, system: string, messages: ChatTurn[], onText: (t: string) => void, full?: code.FullSession): Promise<string> {
+  if (viaCode()) return (await code.run({ model: model(), system, prompt: fold(messages), id, onText, full })).text
   const res = await run({ system, messages }, { id, onText })
   if (res.stop_reason === 'max_tokens') throw new Error('Claude ran out of output space before finishing.')
   return textOf(res)
@@ -292,7 +299,8 @@ export async function suggest(a: { path: string; text: string; selection?: strin
   return structured<{ reply: string; edits: Edit[] }>(
     `You are a writing assistant working inside the writer's notes app. You never edit the file yourself: you propose edits that the writer will review one by one. Propose edits only when they help with the request; questions can be answered with an empty edits list. ${QUOTE_RULES.replace('Every quote', 'Every "find"')}`,
     withContext(a.history, await buildContext(a.path, a.text), a.instruction + focus),
-    editsSchema
+    editsSchema,
+    session(READ_ONLY_TOOLS)
   )
 }
 
@@ -306,7 +314,9 @@ export async function write(
     id,
     'You are a writing assistant that rewrites one passage of the writer\'s markdown note. Output ONLY the new markdown for the passage in <target>: no preamble, no code fences, no commentary. Keep headings and links unless asked to change them. Match the writer\'s voice.',
     withContext(a.history, await buildContext(a.path, a.text), `${a.instruction}\n\n<target>\n${a.target}\n</target>`),
-    onText
+    onText,
+    // No tools in Write mode: narration between tool calls would otherwise stream into the note.
+    session([])
   )
 }
 
@@ -345,4 +355,59 @@ export async function inspire(a: { passage: string; issue: string }): Promise<In
   const items = onlySourced(parseItems(textOf(msg!)), sourcedUrls(blocks)).slice(0, 5)
   if (!items.length) throw new Error('Claude found no inspiration with a verifiable source. Try again later.')
   return items
+}
+
+export type AiTells = {
+  overall_score: number
+  summary: string
+  paragraphs: { opening: string; score: number }[]
+  tells: { quote: string; pattern: string; explanation: string; replacement: string }[]
+}
+
+const aiTellsSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['overall_score', 'summary', 'paragraphs', 'tells'],
+  properties: {
+    overall_score: { type: 'integer', description: '0 = reads entirely human, 100 = reads entirely like AI-generated text.' },
+    summary: { type: 'string', description: 'Two sentences on the overall impression.' },
+    paragraphs: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['opening', 'score'],
+        properties: {
+          opening: { type: 'string', description: 'The first 6 to 10 words of the paragraph, copied exactly.' },
+          score: { type: 'integer', description: '0 to 100, as for overall_score.' }
+        }
+      }
+    },
+    tells: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['quote', 'pattern', 'explanation', 'replacement'],
+        properties: {
+          quote: { type: 'string', description: 'Exact, verbatim span from the text.' },
+          pattern: { type: 'string', description: 'Short name of the AI-writing pattern.' },
+          explanation: { type: 'string' },
+          replacement: { type: 'string', description: 'A more natural rewrite of the quote, ready to paste.' }
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Claude's read on how AI-generated the prose *sounds*: stylistic tells, not proof of authorship.
+ * Runs in the cheap isolated mode in subscription use.
+ */
+export async function aiTells(text: string): Promise<AiTells> {
+  return structured<AiTells>(
+    `You assess how much a piece of prose reads like AI-generated text, based on known stylistic tells: inflated significance ("a testament to", "pivotal"), "not just X but Y" contrasts, reflexive groups of three, em-dash overuse, vague attributions, promotional or stock vocabulary ("delve", "tapestry", "foster", "multifaceted"), filler transitions ("It's important to note"), tidy summarizing closers, uniform sentence rhythm, and generic claims with no concrete detail. Concrete specifics, personal voice, irregular rhythm and small imperfections read human. Score every prose paragraph (skip headings). List the 3 to 8 clearest tells. ${QUOTE_RULES.replace('<current_file>', 'the text')} This is a style signal, not proof of who wrote it, so calibrate: ordinary competent writing should score low.`,
+    [{ role: 'user', content: `<text>\n${text}\n</text>` }],
+    aiTellsSchema
+  )
 }

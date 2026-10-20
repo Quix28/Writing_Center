@@ -12,7 +12,12 @@ const paths = {
   pencil: 'M10.5 2.5l3 3-8 8H2.5v-3z',
   trash: 'M2.75 4.5h10.5 M6 4.5V2.75h4V4.5 M4.25 4.5l.75 9h6l.75-9',
   close: 'M4 4l8 8 M12 4l-8 8',
-  chevron: 'M6 3.5L10.5 8 6 12.5'
+  chevron: 'M6 3.5L10.5 8 6 12.5',
+  file: 'M4 1.75h5.25L12.5 5v9.25H4z M9.25 1.75V5h3.25',
+  image: 'M2.25 3h11.5v10H2.25z M2.25 11l3.5-3.5 3 3 2-2 3 3 M10.5 6.25a.9.9 0 1 0 0-.01z',
+  pdf: 'M4 1.75h5.25L12.5 5v9.25H4z M9.25 1.75V5h3.25 M5.75 11.5h4.5 M5.75 9h4.5',
+  slides: 'M2 2.75h12v8.5H2z M8 11.25v2.5 M5.5 13.75h5 M4.5 5.5h7 M4.5 8h4.5',
+  check: 'M3 8.5l3 3 7-7'
 }
 
 export type IconName = keyof typeof paths

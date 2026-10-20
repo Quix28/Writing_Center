@@ -27,6 +27,7 @@ const api = {
     write: invoke('claude:write'),
     abort: invoke('claude:abort'),
     inspire: invoke('claude:inspire'),
+    aiTells: invoke('claude:aiTells'),
     status: invoke('claude:status'),
     login: invoke('claude:login'),
     setKey: invoke('claude:setKey'),
@@ -44,6 +45,15 @@ const api = {
     status: invoke('gdocs:status'),
     saveClient: invoke('gdocs:saveClient'),
     connect: invoke('gdocs:connect')
+  },
+  detector: {
+    status: invoke('detector:status'),
+    score: invoke('detector:score')
+  },
+  files: {
+    docx: invoke('files:docx'),
+    pptx: invoke('files:pptx'),
+    open: invoke('files:open')
   },
   settings: {
     get: invoke('settings:get'),
