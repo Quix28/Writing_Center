@@ -166,6 +166,7 @@ Test-only variables (leave them unset in normal use): `WC_HEADLESS`, `WC_VAULT`,
 | **Real** SlopTotal: installed, started by the app on 127.0.0.1, scored a note, and stopped when the app quit | `WC_REAL_DETECTOR=1 node test/e2e-phase9-aicheck.mjs` |
 | **Real** Assistant as a full Claude Code session (your CLAUDE.md, hooks, skills): Suggest returned a diff; Write streamed clean prose with no "Answer:" prefix | manual headless runs on Haiku |
 | Clawd wanders and hangs from a line when idle | headless observation + screenshot |
+| Language: English notes are checked by Harper; Turkish notes get no English suggestions and switch to macOS spellcheck; mixed notes check only English sentences; right-click builds a spelling and edit menu; Claude is told to reply in the note's language | `test/e2e-phase10-language.mjs` + `test/language.test.ts` |
 
 ### Untested
 
@@ -211,7 +212,11 @@ Test-only variables (leave them unset in normal use): `WC_HEADLESS`, `WC_VAULT`,
 - If a file changes on disk while you have unsaved edits, an open suggestion, or a running rewrite in the app, the app's version wins and you get a toast.
 - **Graph:** the layout is a simple O(n²) force layout that isn't saved. It's fine up to a few hundred notes.
 - **Canvas:** Obsidian group and link nodes show as plain cards and can't be edited, but they're kept when saving. Node colours and edge labels can't be edited.
-- **Harper:** American English only, and it misses some grammar errors (for example, it doesn't flag "This are").
+- **Languages:** Harper checks English only, and it misses some grammar errors (for example, it doesn't flag "This are").
+  - For notes in another language, such as Turkish, Harper stays quiet and macOS's own spellchecker takes over. Right-click a misspelled word for suggestions or **Add to Dictionary**.
+  - In mixed notes, Harper checks only the English sentences.
+  - Claude answers in the note's language.
+  - The macOS underline in the visible window couldn't be checked in headless tests, though macOS itself confirmed it flags "yavas" and suggests "yavaş".
 - **Claude context:** the current note plus the notes it links to directly, capped at roughly 100k tokens using a 4-characters-per-token estimate.
 - **Suggest-mode edits:** each edit must quote the note exactly. Edits whose text can't be found are skipped and reported in the chat.
 - **Write mode:**

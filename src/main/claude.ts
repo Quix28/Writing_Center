@@ -256,12 +256,15 @@ async function streamed(id: string, system: string, messages: ChatTurn[], onText
   return textOf(res)
 }
 
+/** Notes can be in any language (Turkish, …); feedback should match it. */
+const LANGUAGE_RULE = 'Write everything you say to the writer in the same language as their text (for example Turkish for a Turkish note); quotes stay verbatim.'
+
 const QUOTE_RULES =
   'Every quote must be copied character-for-character from <current_file> (never from linked files), short (a phrase or a sentence), and must not span markdown syntax you would not reproduce exactly.'
 
 /** `withLinks: false` is Clawd's cheap path: only the visible passage, no linked notes. */
 export async function review(path: string, text: string, limit?: number, withLinks = true): Promise<Finding[]> {
-  const system = `You are a demanding but fair writing editor. Review the content of <current_file> for clarity, argument strength, structure, repetition and tone. Linked files are background only. ${QUOTE_RULES}${limit ? ` Report only the ${limit} weakest spots, most important first.` : ''} Return no findings rather than inventing weak ones.`
+  const system = `You are a demanding but fair writing editor. Review the content of <current_file> for clarity, argument strength, structure, repetition and tone. Linked files are background only. ${QUOTE_RULES}${limit ? ` Report only the ${limit} weakest spots, most important first.` : ''} Return no findings rather than inventing weak ones. ${LANGUAGE_RULE}`
   const content = withLinks ? await buildContext(path, text) : `<current_file path="${path}">\n${text}\n</current_file>`
   return (await structured<{ findings: Finding[] }>(system, [{ role: 'user', content }], findingsSchema)).findings
 }
@@ -298,7 +301,7 @@ function withContext(history: ChatTurn[], context: string, instruction: string):
 export async function suggest(a: { path: string; text: string; selection?: string; instruction: string; history: ChatTurn[] }) {
   const focus = a.selection ? `\n\nThe writer has selected this passage; focus on it:\n<selection>\n${a.selection}\n</selection>` : ''
   return structured<{ reply: string; edits: Edit[] }>(
-    `You are a writing assistant working inside the writer's notes app. You never edit the file yourself: you propose edits that the writer will review one by one. Propose edits only when they help with the request; questions can be answered with an empty edits list. ${QUOTE_RULES.replace('Every quote', 'Every "find"')}`,
+    `You are a writing assistant working inside the writer's notes app. You never edit the file yourself: you propose edits that the writer will review one by one. Propose edits only when they help with the request; questions can be answered with an empty edits list. ${QUOTE_RULES.replace('Every quote', 'Every "find"')} ${LANGUAGE_RULE}`,
     withContext(a.history, await buildContext(a.path, a.text), a.instruction + focus),
     editsSchema,
     session(SKILLS_ONLY)
@@ -313,7 +316,7 @@ export async function write(
 ): Promise<string> {
   return streamed(
     id,
-    'You are a writing assistant that rewrites one passage of the writer\'s markdown note. Output ONLY the new markdown for the passage in <target>: no preamble, no code fences, no commentary. Keep headings and links unless asked to change them. Match the writer\'s voice.',
+    'You are a writing assistant that rewrites one passage of the writer\'s markdown note. Output ONLY the new markdown for the passage in <target>: no preamble, no code fences, no commentary. Keep headings and links unless asked to change them. Match the writer\'s voice and keep the passage in its original language.',
     withContext(a.history, await buildContext(a.path, a.text), `${a.instruction}\n\n<target>\n${a.target}\n</target>`),
     onText,
     // No tools in Write mode: narration between tool calls would otherwise stream into the note.
@@ -329,7 +332,7 @@ export type { Inspiration }
 
 /** Web-searched examples for one weak passage. Items whose URL did not come back from the search are dropped. */
 const INSPIRE_SYSTEM =
-  'A writer is stuck on the passage below. Use web search to find 3 to 5 concrete, relevant examples, techniques, or sources that show how skilled writers handle this issue. Only include pages that appeared in your search results, and copy each URL exactly as the results gave it. Finish with only this JSON: {"items":[{"title":"…","url":"…","why":"one sentence on how it helps"}]}'
+  'A writer is stuck on the passage below. Use web search to find 3 to 5 concrete, relevant examples, techniques, or sources that show how skilled writers handle this issue. Only include pages that appeared in your search results, and copy each URL exactly as the results gave it. Finish with only this JSON: {"items":[{"title":"…","url":"…","why":"one sentence on how it helps"}]}. Write each title and why in the same language as the passage.'
 
 export async function inspire(a: { passage: string; issue: string }): Promise<Inspiration[]> {
   const prompt = `<passage>\n${a.passage}\n</passage>\n<issue>\n${a.issue}\n</issue>`
@@ -407,7 +410,7 @@ const aiTellsSchema = {
  */
 export async function aiTells(text: string): Promise<AiTells> {
   return structured<AiTells>(
-    `You assess how much a piece of prose reads like AI-generated text, based on known stylistic tells: inflated significance ("a testament to", "pivotal"), "not just X but Y" contrasts, reflexive groups of three, em-dash overuse, vague attributions, promotional or stock vocabulary ("delve", "tapestry", "foster", "multifaceted"), filler transitions ("It's important to note"), tidy summarizing closers, uniform sentence rhythm, and generic claims with no concrete detail. Concrete specifics, personal voice, irregular rhythm and small imperfections read human. Score every prose paragraph (skip headings). List the 3 to 8 clearest tells. ${QUOTE_RULES.replace('<current_file>', 'the text')} This is a style signal, not proof of who wrote it, so calibrate: ordinary competent writing should score low.`,
+    `You assess how much a piece of prose reads like AI-generated text, based on known stylistic tells: inflated significance ("a testament to", "pivotal"), "not just X but Y" contrasts, reflexive groups of three, em-dash overuse, vague attributions, promotional or stock vocabulary ("delve", "tapestry", "foster", "multifaceted"), filler transitions ("It's important to note"), tidy summarizing closers, uniform sentence rhythm, and generic claims with no concrete detail. Concrete specifics, personal voice, irregular rhythm and small imperfections read human. Score every prose paragraph (skip headings). List the 3 to 8 clearest tells. ${QUOTE_RULES.replace('<current_file>', 'the text')} This is a style signal, not proof of who wrote it, so calibrate: ordinary competent writing should score low. Judge the text in its own language. ${LANGUAGE_RULE}`,
     [{ role: 'user', content: `<text>\n${text}\n</text>` }],
     aiTellsSchema
   )

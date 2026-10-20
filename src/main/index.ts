@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, protocol, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, protocol, shell, type MenuItemConstructorOptions } from 'electron'
 import { join } from 'node:path'
 import * as vault from './vault'
 import { loadSettings, saveSettings, type Settings } from './settings'
@@ -41,6 +41,20 @@ function createWindow() {
     return { action: 'deny' }
   })
   win.webContents.on('will-navigate', (e) => e.preventDefault())
+  // Right-click: macOS spelling suggestions (used for non-English notes) plus the usual edit commands.
+  win.webContents.on('context-menu', (_e, params) => {
+    const items: MenuItemConstructorOptions[] = params.dictionarySuggestions.map((word) => ({ label: word, click: () => win.webContents.replaceMisspelling(word) }))
+    if (params.misspelledWord) {
+      if (!items.length) items.push({ label: 'No suggestions', enabled: false })
+      items.push({ label: 'Add to Dictionary', click: () => win.webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord) }, { type: 'separator' })
+    }
+    if (params.isEditable) items.push({ role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { type: 'separator' }, { role: 'selectAll' })
+    else if (params.selectionText) items.push({ role: 'copy' })
+    if (!items.length) return
+    // Headless tests must never show a native menu (it would appear on the user's screen); they read it from here instead.
+    if (headless) (globalThis as { wcLastMenu?: unknown }).wcLastMenu = { word: params.misspelledWord, items: items.map((i) => i.label ?? i.role ?? i.type) }
+    else Menu.buildFromTemplate(items).popup({ window: win })
+  })
   if (process.env.ELECTRON_RENDERER_URL) win.loadURL(process.env.ELECTRON_RENDERER_URL)
   else win.loadFile(join(import.meta.dirname, '../renderer/index.html'))
 }

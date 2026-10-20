@@ -5,13 +5,14 @@ set -euo pipefail
 cd "${0:A:h}/.."
 
 npm run build
-APP="dist/Writing Centre.app"
+# Assemble and sign in a temp folder: iCloud-synced folders (like Desktop) add Finder attributes
+# to bundles while they're being built, and codesign refuses bundles that carry them.
+STAGE="$(mktemp -d)"
+trap 'rm -rf "$STAGE"' EXIT
+APP="$STAGE/Writing Centre.app"
 RES="$APP/Contents/Resources"
 PLIST="$APP/Contents/Info.plist"
 
-rm -rf "$APP"
-mkdir -p dist
-# ditto without extended attributes: macOS provenance tags on copies would make codesign refuse the bundle.
 ditto --noextattr --norsrc node_modules/electron/dist/Electron.app "$APP"
 rm -f "$RES/default_app.asar"
 mkdir -p "$RES/app"
@@ -26,4 +27,9 @@ plutil -replace CFBundleShortVersionString -string "$(node -p 'require("./packag
 
 xattr -cr "$APP"
 codesign --force --deep --sign - "$APP"
-echo "Built $APP"
+
+mkdir -p dist
+rm -rf "dist/Writing Centre.app"
+ditto --noextattr --norsrc "$APP" "dist/Writing Centre.app"
+codesign --verify --deep "dist/Writing Centre.app"
+echo "Built dist/Writing Centre.app"
