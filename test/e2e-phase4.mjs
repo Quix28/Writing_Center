@@ -68,7 +68,8 @@ await check('8s typing pause → thinking → walks → points at a weak spot', 
   const waited = Date.now() - typedAt
   assert(waited >= 7500 && waited < 11000, `review fired after ${waited}ms`)
   const req = await requestAfter(0)
-  assert.match(req.system, /3 weakest/)
+  assert.match(req.system, /Never pad the list/)
+  assert.doesNotMatch(req.system, /weakest/)
   assert(!req.messages[0].content.includes('<linked_file'), 'Clawd sends only the visible text')
   await page.waitForFunction(() => document.querySelector('.clawd').classList.contains('mode-walking'))
   await page.waitForFunction(() => document.querySelector('.clawd').classList.contains('mode-pointing'))

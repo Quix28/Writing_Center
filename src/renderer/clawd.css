@@ -80,3 +80,50 @@
 .clawd.mode-hanging .legs-a { transform: translateY(0.6px); }
 .clawd.mode-hanging .eyes { animation: clawd-blink 3.1s infinite; }
 @keyframes clawd-swing { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
+
+/* ---------- personality ---------- */
+.clawd .cheeks rect { fill: #f2a19b; opacity: 0.9; }
+.clawd .mouth rect { fill: #1b1b1b; }
+.clawd .mouth, .clawd .heart, .clawd .zzz { opacity: 0; }
+.clawd .heart rect { fill: #ef6f86; }
+.clawd .zzz rect { fill: var(--accent); }
+.clawd .heart, .clawd .z { transform-box: fill-box; transform-origin: center; }
+.clawd.mode-happy .mouth, .clawd.mode-wave .mouth, .clawd.mode-dance .mouth, .clawd.mode-hop .mouth { opacity: 1; }
+
+/* hop: a quick double bounce with a squash on landing */
+.clawd.mode-hop .sprite { transform-origin: 50% 100%; animation: clawd-hop 0.5s cubic-bezier(0.3, 0, 0.5, 1) 2; }
+@keyframes clawd-hop { 0% { transform: translateY(0) scale(1.06, 0.92); } 40% { transform: translateY(-4px) scale(0.96, 1.05); } 80% { transform: translateY(0) scale(1.05, 0.94); } 100% { transform: translateY(0) scale(1); } }
+
+/* wave: one claw up, waving */
+.clawd.mode-wave .claw-r { transform-origin: 0% 100%; animation: clawd-wave 0.34s ease-in-out infinite alternate; }
+@keyframes clawd-wave { from { transform: translate(0.5px, -1px) rotate(-18deg); } to { transform: translate(0.5px, -1.5px) rotate(14deg); } }
+
+/* dance: side-to-side shuffle with both claws up */
+.clawd.mode-dance .sprite { transform-origin: 50% 100%; animation: clawd-dance 0.44s ease-in-out infinite alternate; }
+.clawd.mode-dance .claw-l { animation: clawd-tap 0.22s steps(2) infinite alternate; }
+.clawd.mode-dance .claw-r { animation: clawd-tap 0.22s steps(2) infinite alternate-reverse; }
+.clawd.mode-dance .legs-a { animation: clawd-step 0.22s steps(2) infinite alternate; }
+.clawd.mode-dance .legs-b { animation: clawd-step 0.22s steps(2) infinite alternate-reverse; }
+@keyframes clawd-dance { from { transform: translateX(-1.2px) rotate(-7deg); } to { transform: translateX(1.2px) rotate(7deg); } }
+
+/* look: eyes glance left, then right */
+.clawd.mode-look .eyes { animation: clawd-look 2s steps(1) 1; }
+@keyframes clawd-look { 0% { transform: translateX(0); } 20% { transform: translateX(-1px); } 55% { transform: translateX(1px); } 85% { transform: translateX(0); } }
+
+/* sleep: eyes shut, slow breathing, floating z's */
+.clawd.mode-sleep .eyes { animation: none; transform: scaleY(0.15) translateY(3px); }
+.clawd.mode-sleep .sprite { transform-origin: 50% 100%; animation: clawd-breathe 2.6s ease-in-out infinite; }
+.clawd.mode-sleep .zzz { opacity: 1; }
+.clawd.mode-sleep .z { animation: clawd-float 2.6s ease-in infinite; }
+.clawd.mode-sleep .z2 { animation-delay: 1.3s; }
+@keyframes clawd-breathe { 50% { transform: scale(1.04, 0.97); } }
+@keyframes clawd-float { 0% { opacity: 0; transform: translateY(2px); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateY(-4px); } }
+
+/* happy: bounce, smile, and a heart that floats up */
+.clawd.mode-happy .sprite { transform-origin: 50% 100%; animation: clawd-hop 0.5s cubic-bezier(0.3, 0, 0.5, 1) 3; }
+.clawd.mode-happy .heart { animation: clawd-heart 2.4s ease-out 1 forwards; }
+@keyframes clawd-heart { 0% { opacity: 0; transform: translateY(3px) scale(0.6); } 20% { opacity: 1; transform: translateY(0) scale(1.1); } 70% { opacity: 1; } 100% { opacity: 0; transform: translateY(-5px) scale(1); } }
+
+/* idle breathing is a touch livelier */
+.clawd.mode-idle .sprite { transform-origin: 50% 100%; animation: clawd-idle 2.2s ease-in-out infinite; }
+@keyframes clawd-idle { 50% { transform: translateY(-0.6px) scale(1.02, 0.98); } }

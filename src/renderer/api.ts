@@ -21,7 +21,7 @@ type Api = {
   }
   claude: {
     models(): Promise<{ id: string; name: string }[]>
-    review(path: string, text: string, limit?: number, withLinks?: boolean): Promise<Finding[]>
+    review(path: string, text: string, withLinks?: boolean): Promise<Finding[]>
     suggest(a: { path: string; text: string; selection?: string; instruction: string; history: ChatTurn[] }): Promise<{ reply: string; edits: Edit[] }>
     write(id: string, a: { path: string; text: string; target: string; instruction: string; history: ChatTurn[] }): Promise<string>
     abort(id: string): Promise<void>

@@ -128,7 +128,11 @@ Test-only variables (leave them unset in normal use): `WC_HEADLESS`, `WC_VAULT`,
   - Pick the Claude model at the top. The choice is saved and used by every AI feature.
   - **Suggest** mode shows Claude's proposals as an inline diff with Accept/Reject on each change. Only accepted text is written to disk.
   - **Write** mode rewrites the selection, or the section under the cursor, and streams it into the editor. One ⌘Z undoes it.
-- **Clawd:** the crab in the bottom-right corner. Once you've stopped typing for 20 seconds, he wanders the margins or walks over and hangs from the end of a line, swinging from his claws. He never takes focus, and reduced-motion settings turn this off.
+- **Clawd:** the crab in the bottom-right corner.
+  - Once you pause for about 10 seconds, he keeps busy: wandering the margins, hanging from the end of a line, hopping, waving, dancing, or glancing around.
+  - After 90 quiet seconds he naps, with little z's; typing or clicking wakes him.
+  - He walks to every real problem he finds, with no fixed limit. When there's nothing worth changing, he says "All good!", smiles and shows a heart.
+  - He never takes focus, and reduced-motion settings turn the animations off.
   - He reviews what's on screen after 8 seconds without typing, or when you click him. At most once a minute.
   - Turn him on or off with the **Clawd on/off** button.
 - **Google Docs:** palette commands *Link to a new doc*, *Link to an existing doc…*, *Push note → Doc*, *Pull Doc → note*, *Sign out*.
@@ -165,7 +169,7 @@ Test-only variables (leave them unset in normal use): `WC_HEADLESS`, `WC_VAULT`,
 | AI check: two separate scores, per-paragraph scores from both, highlights by either source, tells become suggest-mode rewrites | `test/e2e-phase9-aicheck.mjs` (mock detector by default) |
 | **Real** SlopTotal: installed, started by the app on 127.0.0.1, scored a note, and stopped when the app quit | `WC_REAL_DETECTOR=1 node test/e2e-phase9-aicheck.mjs` |
 | **Real** Assistant as a full Claude Code session (your CLAUDE.md, hooks, skills): Suggest returned a diff; Write streamed clean prose with no "Answer:" prefix | manual headless runs on Haiku |
-| Clawd wanders and hangs from a line when idle | headless observation + screenshot |
+| Clawd wanders, hangs, hops, waves, dances and naps when idle; shows every finding (no cap); says "All good!" with a happy animation when there are none | `test/e2e-phase11-clawd.mjs` + pose screenshots |
 | Language: English notes are checked by Harper; Turkish notes get no English suggestions and switch to macOS spellcheck; mixed notes check only English sentences; right-click builds a spelling and edit menu; Claude is told to reply in the note's language | `test/e2e-phase10-language.mjs` + `test/language.test.ts` |
 
 ### Untested

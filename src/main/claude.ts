@@ -263,8 +263,8 @@ const QUOTE_RULES =
   'Every quote must be copied character-for-character from <current_file> (never from linked files), short (a phrase or a sentence), and must not span markdown syntax you would not reproduce exactly.'
 
 /** `withLinks: false` is Clawd's cheap path: only the visible passage, no linked notes. */
-export async function review(path: string, text: string, limit?: number, withLinks = true): Promise<Finding[]> {
-  const system = `You are a demanding but fair writing editor. Review the content of <current_file> for clarity, argument strength, structure, repetition and tone. Linked files are background only. ${QUOTE_RULES}${limit ? ` Report only the ${limit} weakest spots, most important first.` : ''} Return no findings rather than inventing weak ones. ${LANGUAGE_RULE}`
+export async function review(path: string, text: string, withLinks = true): Promise<Finding[]> {
+  const system = `You are a fair writing editor. Review the content of <current_file> for clarity, argument strength, structure, repetition and tone. Linked files are background only. ${QUOTE_RULES} Report every genuine problem you find, however many, most important first. Never pad the list or flag matters of taste: if nothing genuinely needs changing, return an empty findings list. That is a good outcome, not a failure. ${LANGUAGE_RULE}`
   const content = withLinks ? await buildContext(path, text) : `<current_file path="${path}">\n${text}\n</current_file>`
   return (await structured<{ findings: Finding[] }>(system, [{ role: 'user', content }], findingsSchema)).findings
 }

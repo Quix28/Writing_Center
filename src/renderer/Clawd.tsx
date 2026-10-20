@@ -5,16 +5,23 @@ import { getView, typingListeners } from './Editor'
 import { setSpans } from './cm/spans'
 import { inReview, isWriting, propose } from './cm/suggest'
 
-type Mode = 'idle' | 'typing' | 'walking' | 'pointing' | 'thinking' | 'hanging'
+type Mode = 'idle' | 'typing' | 'walking' | 'pointing' | 'thinking' | 'hanging' | Trick | 'sleep' | 'happy'
+/** Little idle tricks, each a short CSS animation, after which Clawd settles back to idle. */
+type Trick = 'hop' | 'wave' | 'dance' | 'look'
+const TRICK_MS: Record<Trick, number> = { hop: 1000, wave: 1700, dance: 2200, look: 2000 }
+/** Modes Clawd can be pulled out of (by typing or a new idle action) without interrupting anything. */
+const RESTING = new Set<Mode>(['idle', 'typing', 'hop', 'wave', 'dance', 'look', 'sleep', 'happy'])
 type Spot = Finding & { at: number }
 
 const IDLE_REVIEW_MS = 8000
 const MIN_GAP_MS = 60_000
 const WALK_MS = 1200
 const SIZE = 48
-/** Idle life: after this long without typing, Clawd starts wandering or hangs from a line now and then. */
-const QUIET_BEFORE_WANDER_MS = 20_000
-const WANDER_EVERY_MS = [15_000, 25_000] as const
+/** Idle life: once you pause, Clawd does something every few seconds, and naps after a long quiet stretch. */
+const QUIET_BEFORE_WANDER_MS = 10_000
+const WANDER_EVERY_MS = [5_000, 10_000] as const
+const SLEEP_AFTER_MS = 90_000
+const HAPPY_MS = 2600
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 /** Original pixel-art crab on a 16×13 grid. Groups are animated from clawd.css. */
@@ -27,10 +34,17 @@ function Sprite() {
         <g className="claw claw-r">{r(13, 1)}{r(15, 1)}{r(13, 2, 3, 2)}{r(12, 4)}</g>
         <g className="shell">{r(4, 3, 8, 1)}{r(3, 4, 10, 5)}</g>
         <g className="eyes">{r(5, 5, 1, 2)}{r(10, 5, 1, 2)}</g>
+        <g className="cheeks">{r(4, 7)}{r(11, 7)}</g>
+        <g className="mouth">{r(6, 7)}{r(9, 7)}{r(7, 8, 2, 1)}</g>
         <g className="legs legs-a">{r(3, 9, 1, 2)}{r(10, 9, 1, 2)}</g>
         <g className="legs legs-b">{r(5, 9, 1, 2)}{r(12, 9, 1, 2)}</g>
       </g>
       <g className="dots">{r(6, -3)}{r(8, -3)}{r(10, -3)}</g>
+      <g className="heart">{r(6, -6, 2, 1)}{r(9, -6, 2, 1)}{r(6, -5, 5, 1)}{r(7, -4, 3, 1)}{r(8, -3)}</g>
+      <g className="zzz">
+        <g className="z z1">{r(12, -5, 4, 1)}{r(14, -4)}{r(13, -3)}{r(12, -2, 4, 1)}</g>
+        <g className="z z2">{r(16, -10, 3, 1)}{r(17, -9)}{r(16, -8, 3, 1)}</g>
+      </g>
     </svg>
   )
 }
@@ -119,14 +133,18 @@ export function Clawd({ path, onInspire, autoReview = true }: { path: string; on
       lastReview.current = Date.now()
       setMode('thinking')
       try {
-        const findings = await api.claude.review(path, visible, 3, false)
+        const findings = await api.claude.review(path, visible, false)
         const doc = getView()?.state.doc.toString() ?? ''
         const found = findings
           .map((f) => ({ ...f, at: doc.indexOf(f.quote, from) >= 0 ? doc.indexOf(f.quote, from) : doc.indexOf(f.quote) }))
           .filter((f) => f.quote && f.at >= 0)
-          .slice(0, 3)
+        if (!found.length) {
+          setMode('happy')
+          say("All good! Nothing I'd change here.")
+          setTimeout(() => setMode((m) => (m === 'happy' ? 'idle' : m)), HAPPY_MS)
+          return
+        }
         setMode('idle')
-        if (!found.length) return say('Looks good to me!')
         setSpots(found)
         goTo(found, 0)
       } catch (e) {
@@ -142,7 +160,7 @@ export function Clawd({ path, onInspire, autoReview = true }: { path: string; on
       lastTyped.current = Date.now()
       clearTimeout(idleTimer.current)
       if (autoReview) idleTimer.current = setTimeout(() => review(false), IDLE_REVIEW_MS)
-      if (modeRef.current !== 'idle' && modeRef.current !== 'typing') return
+      if (!RESTING.has(modeRef.current)) return
       setMode('typing')
       clearTimeout(typingTimer.current)
       typingTimer.current = setTimeout(() => setMode((m) => (m === 'typing' ? 'idle' : m)), 500)
@@ -186,27 +204,43 @@ export function Clawd({ path, onInspire, autoReview = true }: { path: string; on
     return { x: rand(16, area.width - SIZE - 16), y: area.height - SIZE - 24 }
   }, [])
 
+  const walkTo = useCallback((target: { x: number; y: number }, then: Mode) => {
+    const from = posRef.current
+    setPos({ ...target, flip: !!from && target.x < from.x })
+    setMode('walking')
+    setTimeout(() => setMode((m) => (m === 'walking' ? then : m)), WALK_MS)
+  }, [])
+
+  const trick = useCallback((t: Trick) => {
+    setMode(t)
+    setTimeout(() => setMode((m) => (m === t ? 'idle' : m)), TRICK_MS[t])
+  }, [])
+
   useEffect(() => {
     if (reducedMotion()) return
     let timer: ReturnType<typeof setTimeout>
     const act = () => {
-      const quiet = Date.now() - lastTyped.current > QUIET_BEFORE_WANDER_MS
-      if (quiet && (modeRef.current === 'idle' || modeRef.current === 'hanging') && !spotsRef.current.length) {
+      const quietFor = Date.now() - lastTyped.current
+      const mode = modeRef.current
+      const free = (RESTING.has(mode) || mode === 'hanging') && mode !== 'typing' && !spotsRef.current.length
+      if (free && quietFor > SLEEP_AFTER_MS) {
+        if (mode !== 'sleep' && mode !== 'hanging') setMode('sleep')
+      } else if (free && quietFor > QUIET_BEFORE_WANDER_MS) {
         const roll = Math.random()
-        const hang = roll < 0.45 ? hangSpot() : null
-        const target = hang ?? (roll < 0.85 ? wanderSpot() : home())
-        if (target) {
-          const from = posRef.current
-          setPos({ ...target, flip: !!from && target.x < from.x })
-          setMode('walking')
-          setTimeout(() => setMode((m) => (m === 'walking' ? (hang ? 'hanging' : 'idle') : m)), WALK_MS)
+        // While hanging he only climbs down somewhere else; on the ground he also does tricks.
+        if (mode === 'hanging' || roll < 0.5) {
+          const hang = roll < 0.25 ? hangSpot() : null
+          const target = hang ?? (roll < 0.45 || mode === 'hanging' ? wanderSpot() : home())
+          if (target) walkTo(target, hang ? 'hanging' : 'idle')
+        } else {
+          trick((['hop', 'wave', 'dance', 'look'] as const)[Math.floor(Math.random() * 4)])
         }
       }
       timer = setTimeout(act, WANDER_EVERY_MS[0] + Math.random() * (WANDER_EVERY_MS[1] - WANDER_EVERY_MS[0]))
     }
     timer = setTimeout(act, WANDER_EVERY_MS[0])
     return () => clearTimeout(timer)
-  }, [hangSpot, wanderSpot, home])
+  }, [hangSpot, wanderSpot, home, walkTo, trick])
 
   useEffect(() => {
     setSpots([])
@@ -256,7 +290,10 @@ export function Clawd({ path, onInspire, autoReview = true }: { path: string; on
         className="clawd-body"
         tabIndex={-1}
         onMouseDown={noFocus}
-        onClick={() => review(true)}
+        onClick={() => {
+          lastTyped.current = Date.now()
+          review(true)
+        }}
         title={autoReview ? "Clawd: click for a quick review of what's on screen" : "Clawd: click for a review of what's on screen (automatic reviews are off to save your plan's limits)"}
         aria-label={`Clawd is ${mode}. Click for a review.`}
       >
