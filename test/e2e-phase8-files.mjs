@@ -1,7 +1,7 @@
 // Headless e2e: every vault file is listed and common types open (PDF, images, .docx, .pptx).
 import { _electron as electron } from 'playwright'
 import { execFileSync } from 'node:child_process'
-import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import assert from 'node:assert/strict'
 
@@ -28,6 +28,8 @@ execFileSync('/usr/bin/zip', ['-qr', vault + 'Talk.pptx', 'ppt'], { cwd: work + 
 writeFileSync(vault + 'data.xyz', 'unknown')
 writeFileSync(vault + 'notes.csv', 'a,b')
 writeFileSync(vault + 'run.command', '#!/bin/sh\necho pwned > /tmp/wc-pwned\n')
+symlinkSync('run.command', vault + 'trick.pdf')
+mkdirSync(vault + 'Fake.pdf')
 
 const app = await electron.launch({ ...target, env: { ...process.env, WC_VAULT: vault, WC_HEADLESS: '1', WC_USER_DATA: userData } })
 const page = await app.firstWindow()
@@ -74,8 +76,10 @@ await check('documents offer the default app; unknown or executable types only S
   await page.locator('.viewer .empty button', { hasText: 'Open in default app' }).waitFor()
   await open('data.xyz')
   await page.locator('.viewer .empty button', { hasText: 'Show in Finder' }).waitFor()
-  const blocked = await page.evaluate(() => window.api.files.open('run.command').then(() => 'opened', (e) => String(e.message)))
-  assert.match(blocked, /only opens documents and media/)
+  for (const name of ['run.command', 'trick.pdf', 'Fake.pdf']) {
+    const blocked = await page.evaluate((n) => window.api.files.open(n).then(() => 'opened', (e) => String(e.message)), name)
+    assert.match(blocked, /only opens documents and media/, name)
+  }
 })
 
 await check('vault protocol refuses paths outside the vault', async () => {

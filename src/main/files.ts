@@ -1,5 +1,6 @@
 import { protocol, net, shell } from 'electron'
 import { execFile } from 'node:child_process'
+import { realpath, stat } from 'node:fs/promises'
 import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import { pathFor } from './vault'
@@ -56,8 +57,11 @@ const OPENABLE = /\.(md|txt|rtf|pdf|png|jpe?g|gif|webp|heic|bmp|tiff?|svg|docx?|
 export const canOpen = (rel: string) => OPENABLE.test(rel)
 
 export async function openExternal(rel: string): Promise<void> {
-  if (!canOpen(rel)) throw new Error('For safety, Writing Centre only opens documents and media. Use Show in Finder for other files.')
-  const error = await shell.openPath(await pathFor(rel))
+  // Judge what macOS will actually open: the symlink's real target, and only a regular file (an .app is a folder).
+  const target = await realpath(await pathFor(rel))
+  if (!canOpen(rel) || !canOpen(target) || !(await stat(target)).isFile())
+    throw new Error('For safety, Writing Centre only opens documents and media. Use Show in Finder for other files.')
+  const error = await shell.openPath(target)
   if (error) throw new Error(error)
 }
 
