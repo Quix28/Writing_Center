@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { join } from 'node:path'
 import * as vault from './vault'
-import { loadSettings, saveSettings } from './settings'
+import { loadSettings, saveSettings, type Settings } from './settings'
 import * as claude from './claude'
 import * as gdocs from './gdocs'
 
@@ -62,7 +62,13 @@ handle('vault:move', vault.move)
 handle('vault:trash', async (rel: string) => shell.trashItem(await vault.pathFor(rel)))
 handle('vault:notes', vault.readAllNotes)
 handle('settings:get', loadSettings)
-handle('settings:set', saveSettings)
+/** The renderer may change only these; the vault changes through the native folder picker, auth through Connections. */
+handle('settings:set', (patch: Partial<Settings>) => {
+  const allowed: Partial<Settings> = {}
+  if (typeof patch?.model === 'string' && /^[a-z0-9][a-z0-9.-]{0,63}$/i.test(patch.model)) allowed.model = patch.model
+  if (typeof patch?.clawd === 'boolean') allowed.clawd = patch.clawd
+  return saveSettings(allowed)
+})
 handle('claude:models', claude.listModels)
 handle('claude:review', claude.review)
 handle('claude:suggest', claude.suggest)
