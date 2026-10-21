@@ -2,9 +2,9 @@ import type { TreeNode, VaultEvent } from '../main/vault'
 import type { Settings } from '../main/settings'
 import type { AiTells, ChatTurn, ClaudeStatus, Edit, Finding, Inspiration } from '../main/claude'
 import type { DetectorResult } from '../main/detector'
-import type { DocMeta, GoogleStatus } from '../main/gdocs'
+import type { DocMeta, GoogleStatus, TabInfo } from '../main/gdocs'
 
-export type { TreeNode, VaultEvent, Settings, ChatTurn, Edit, Finding, Inspiration, DocMeta, ClaudeStatus, GoogleStatus, AiTells, DetectorResult }
+export type { TreeNode, VaultEvent, Settings, ChatTurn, Edit, Finding, Inspiration, DocMeta, ClaudeStatus, GoogleStatus, AiTells, DetectorResult, TabInfo }
 
 type Api = {
   vault: {
@@ -36,10 +36,11 @@ type Api = {
   }
   gdocs: {
     meta(id: string): Promise<DocMeta>
+    tabs(id: string): Promise<TabInfo[]>
     list(query: string): Promise<DocMeta[]>
     create(title: string): Promise<string>
-    pull(id: string): Promise<{ markdown: string; modifiedTime: string }>
-    push(id: string, markdown: string): Promise<{ modifiedTime: string }>
+    pull(id: string, tabId?: string): Promise<{ markdown: string; modifiedTime: string }>
+    push(id: string, markdown: string, tabId?: string): Promise<{ modifiedTime: string }>
     signOut(): Promise<void>
     status(): Promise<GoogleStatus>
     saveClient(clientId: string, clientSecret: string): Promise<GoogleStatus>

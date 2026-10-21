@@ -18,7 +18,7 @@ const kids = (n: SyntaxNode) => {
  * Converts markdown into Google Docs batchUpdate requests that fill an empty document body.
  * Keeps headings, bold, italic, links and (nested) lists; everything else becomes plain paragraphs.
  */
-export function mdToDocs(markdown: string): docs_v1.Schema$Request[] {
+export function mdToDocs(markdown: string, tabId?: string): docs_v1.Schema$Request[] {
   const md = splitFrontmatter(markdown).body.replace(WIKILINK, (_, target: string, alias?: string) => alias ?? target)
   const tree = parser.parse(md)
   const paras: Para[] = []
@@ -181,5 +181,17 @@ export function mdToDocs(markdown: string): docs_v1.Schema$Request[] {
     requests.push({
       createParagraphBullets: { range: range(g.from, g.to + 1), bulletPreset: g.kind === 'BULLET' ? 'BULLET_DISC_CIRCLE_SQUARE' : 'NUMBERED_DECIMAL_ALPHA_ROMAN' }
     })
-  return requests
+  return tabId ? requests.map((r) => inTab(r, tabId)) : requests
+}
+
+/** Points every location and range of a request at one document tab, so other tabs are never touched. */
+function inTab(request: docs_v1.Schema$Request, tabId: string): docs_v1.Schema$Request {
+  const out: Record<string, Record<string, unknown>> = {}
+  for (const [kind, body] of Object.entries(request) as [string, Record<string, unknown>][]) {
+    const b = { ...body }
+    if (b.location) b.location = { ...(b.location as object), tabId }
+    if (b.range) b.range = { ...(b.range as object), tabId }
+    out[kind] = b
+  }
+  return out as docs_v1.Schema$Request
 }

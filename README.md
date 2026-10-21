@@ -146,6 +146,9 @@ Test-only variables (leave them unset in normal use): `WC_HEADLESS`, `WC_VAULT`,
   - He reviews what's on screen after 8 seconds without typing, or when you click him. At most once a minute.
   - Turn him on or off with the **Clawd on/off** button.
 - **Google Docs:** palette commands *Link to a new doc*, *Link to an existing doc…*, *Push note → Doc*, *Pull Doc → note*, *Sign out*.
+  - For a Doc with **document tabs**, linking asks which tab the note should mirror. Push and pull then touch only that tab; the other tabs stay as they are.
+  - An edit in another tab doesn't count as a conflict.
+  - A Doc with several tabs can't be linked as a whole document, because Google's API would only write its first tab.
   - The link is stored in the note's frontmatter as `gdoc_id`, along with `gdoc_synced_at` and `gdoc_hash`.
 
 ## What is verified, and what is not
@@ -169,6 +172,7 @@ Test-only variables (leave them unset in normal use): `WC_HEADLESS`, `WC_VAULT`,
 | Find inspiration sends the web search tool, and items whose URL is not in the search results are dropped | e2e phase 4 + `test/inspiration.test.ts` |
 | Google sync: link new or existing; push and pull; diff instead of overwrite whenever the other side changed; Cancel changes nothing; network/API errors leave both sides untouched | `test/e2e-phase5.mjs` (mock Google) |
 | Markdown → Docs request generation (headings, bold, italic, links, nested lists, index maths) | `test/gdocs.test.ts` |
+| Google Docs tabs: tab picker, pull/push of one tab only (every request carries its `tabId`), no false conflicts from other tabs, whole-document links refused on tabbed Docs; tab → markdown conversion (headings, emphasis, links, nested and numbered lists, tables) | `test/e2e-phase14-gdocs-tabs.mjs` (mock Google) + `test/docsToMd.test.ts` |
 | `npm run dev` renderer loads with no console errors | manual headless check |
 | Connections sheet: an API key connects (stored encrypted, never as plain text); a pasted "…" is rejected with a clear message; disconnect works; browser sign-in runs `ant auth login --profile writing-centre`; Google client is saved | `test/e2e-phase6-connections.mjs` (mock API, stand-in `ant`) |
 | Subscription mode: requests go through `claude -p` with isolated settings and no API key in the environment; review, write streaming, click-only Clawd, WebSearch inspiration filtered to real URLs, usage-limit message | `test/e2e-phase7-subscription.mjs` (stand-in `claude`) |

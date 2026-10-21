@@ -1,6 +1,14 @@
 // Minimal stand-in for the Docs v1 + Drive v3 endpoints Writing Centre uses. Docs are stored as plain markdown.
 import { createServer } from 'node:http'
 
+/** Tabs are stored as { id, title, paras: [{ text, style }], children } and served in the Docs API shape. */
+const allTabs = (tabs = []) => tabs.flatMap((t) => [t, ...allTabs(t.children)])
+function tabJson(t, index) {
+  let at = 1
+  const content = [{ sectionBreak: {}, endIndex: 1 }, ...t.paras.map((p) => ({ startIndex: at, endIndex: (at += p.text.length + 1), paragraph: { elements: [{ textRun: { content: p.text + '\n', textStyle: {} } }], paragraphStyle: { namedStyleType: p.style } } }))]
+  return { tabProperties: { tabId: t.id, title: t.title, index }, documentTab: { body: { content }, lists: {} }, childTabs: (t.children ?? []).map(tabJson) }
+}
+
 export function startGoogleMock() {
   const docs = new Map()
   const calls = []
@@ -22,6 +30,9 @@ export function startGoogleMock() {
         docs.set(id, { name: body.title, markdown: '', modifiedTime: tick() })
         return json(200, { documentId: id, title: body.title })
       }
+      if ((m = /^\/v1\/documents\/([^/:]+)$/.exec(u.pathname)) && docs.get(m[1])?.tabs && u.searchParams.get('includeTabsContent') === 'true') {
+        return json(200, { tabs: docs.get(m[1]).tabs.map(tabJson) })
+      }
       if ((m = /^\/v1\/documents\/([^/:]+)$/.exec(u.pathname))) {
         const d = docs.get(m[1])
         return d ? json(200, { body: { content: [{ endIndex: 1 }, { endIndex: d.markdown.length + 2 }] } }) : json(404, { error: { code: 404, message: 'not found' } })
@@ -29,7 +40,14 @@ export function startGoogleMock() {
       if ((m = /^\/v1\/documents\/([^/:]+):batchUpdate$/.exec(u.pathname))) {
         const d = docs.get(m[1])
         const insert = body.requests.find((r) => r.insertText)
-        d.markdown = insert ? insert.insertText.text : ''
+        const tabId = insert?.insertText.location.tabId ?? body.requests[0]?.deleteContentRange?.range.tabId
+        if (tabId) {
+          const tab = allTabs(d.tabs).find((t) => t.id === tabId)
+          tab.paras = (insert ? insert.insertText.text : '').split('\n').map((text) => ({ text, style: 'NORMAL_TEXT' }))
+          let at = 1
+          const starts = tab.paras.map((p) => { const s = at; at += p.text.length + 1; return s })
+          for (const r of body.requests) if (r.updateParagraphStyle) { const i = starts.indexOf(r.updateParagraphStyle.range.startIndex); if (i >= 0) tab.paras[i].style = r.updateParagraphStyle.paragraphStyle.namedStyleType }
+        } else d.markdown = insert ? insert.insertText.text : ''
         d.modifiedTime = tick()
         d.lastRequests = body.requests
         return json(200, { documentId: m[1], replies: [] })
@@ -54,6 +72,12 @@ export function startGoogleMock() {
         calls,
         /** Simulates someone editing the Doc in the browser. */
         editRemote: (id, markdown) => Object.assign(docs.get(id), { markdown, modifiedTime: tick() }),
+        /** Simulates someone editing one tab in the browser. */
+        editTab: (id, tabId, paras) => {
+          allTabs(docs.get(id).tabs).find((t) => t.id === tabId).paras = paras
+          docs.get(id).modifiedTime = tick()
+        },
+        tabText: (id, tabId) => allTabs(docs.get(id).tabs).find((t) => t.id === tabId).paras.map((p) => p.text).join('\n'),
         failOn: (pattern, drop = false) => (fail = pattern && Object.assign(pattern, { drop })),
         close: () => server.close()
       })

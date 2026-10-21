@@ -7,6 +7,7 @@ import { CodeChallengeMethod, OAuth2Client, type Credentials } from 'google-auth
 import { docs } from '@googleapis/docs'
 import { drive } from '@googleapis/drive'
 import { mdToDocs } from './mdToDocs'
+import { findTab, flattenTabs, tabToMarkdown, type TabInfo } from './docsToMd'
 import { checkSecret, KEYCHAIN_DENIED, loadSecrets } from './secrets'
 import { loadSettings, saveSettings } from './settings'
 
@@ -171,20 +172,49 @@ export const create = guarded(async (title: string): Promise<string> => {
 })
 
 /** Doc → markdown via Drive's native Markdown export. */
-export const pull = guarded(async (id: string): Promise<{ markdown: string; modifiedTime: string }> => {
+export type { TabInfo }
+
+/** The document's tabs (Google Docs "document tabs"), in reading order. */
+export const tabs = guarded(async (id: string): Promise<TabInfo[]> => {
+  const { docsApi } = await apis()
+  const props = 'tabProperties(tabId,title,index)'
+  const { data } = await docsApi.documents.get({ documentId: id, includeTabsContent: true, fields: `tabs(${props},childTabs(${props},childTabs(${props},childTabs(${props}))))` })
+  return flattenTabs(data.tabs ?? [])
+})
+
+/** Without a tab, Google reads and writes only the first tab, so a whole-document link would mix tabs up. */
+async function refuseIfTabbed(id: string) {
+  if ((await tabs(id)).length > 1)
+    throw new Error('This Google Doc has several tabs. Link the note to one tab: ⌘P → "Google Docs: Link to an existing doc…", then pick the tab.')
+}
+
+async function getTab(id: string, tabId: string) {
+  const { docsApi } = await apis()
+  const { data } = await docsApi.documents.get({ documentId: id, includeTabsContent: true })
+  const tab = findTab(data.tabs ?? [], tabId)
+  if (!tab?.documentTab) throw new Error('That tab no longer exists in the Google Doc. Link the note again to pick another tab.')
+  return tab.documentTab
+}
+
+/** Doc → markdown: the whole document via Drive's Markdown export, or a single tab converted from its content. */
+export const pull = guarded(async (id: string, tabId?: string): Promise<{ markdown: string; modifiedTime: string }> => {
   const { driveApi } = await apis()
   // Read the time first: an edit landing mid-export then shows up as newer on the next sync instead of being missed.
   const { modifiedTime } = await meta(id)
+  if (tabId) return { markdown: tabToMarkdown(await getTab(id, tabId)), modifiedTime }
+  await refuseIfTabbed(id)
   const res = await driveApi.files.export({ fileId: id, mimeType: 'text/markdown' }, { responseType: 'text' })
   return { markdown: String(res.data), modifiedTime }
 })
 
 /** Markdown → Doc: one atomic batchUpdate that clears the body and rebuilds it, so a failure leaves the Doc as it was. */
-export const push = guarded(async (id: string, markdown: string): Promise<{ modifiedTime: string }> => {
+export const push = guarded(async (id: string, markdown: string, tabId?: string): Promise<{ modifiedTime: string }> => {
   const { docsApi } = await apis()
-  const { data } = await docsApi.documents.get({ documentId: id, fields: 'body(content(endIndex))' })
-  const endIndex = data.body?.content?.at(-1)?.endIndex ?? 1
-  const requests = [...(endIndex > 2 ? [{ deleteContentRange: { range: { startIndex: 1, endIndex: endIndex - 1 } } }] : []), ...mdToDocs(markdown)]
+  if (!tabId) await refuseIfTabbed(id)
+  const body = tabId ? (await getTab(id, tabId)).body : (await docsApi.documents.get({ documentId: id, fields: 'body(content(endIndex))' })).data.body
+  const endIndex = body?.content?.at(-1)?.endIndex ?? 1
+  const clear = endIndex > 2 ? [{ deleteContentRange: { range: { startIndex: 1, endIndex: endIndex - 1, ...(tabId ? { tabId } : {}) } } }] : []
+  const requests = [...clear, ...mdToDocs(markdown, tabId)]
   if (requests.length) await docsApi.documents.batchUpdate({ documentId: id, requestBody: { requests } })
   return { modifiedTime: (await meta(id)).modifiedTime }
 })

@@ -37,6 +37,7 @@ const api = {
   },
   gdocs: {
     meta: invoke('gdocs:meta'),
+    tabs: invoke('gdocs:tabs'),
     list: invoke('gdocs:list'),
     create: invoke('gdocs:create'),
     pull: invoke('gdocs:pull'),

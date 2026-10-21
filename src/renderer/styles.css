@@ -327,3 +327,6 @@ details.option { display: block; }
 .editor .cm-searchMatch { background: #d9b45f33; outline: 1px solid #d9b45f66; border-radius: 2px; }
 .editor .cm-searchMatch-selected { background: #9bb8d855; outline-color: var(--accent); }
 .editor .cm-selectionMatch { background: #9bb8d81f; }
+.tab-list { list-style: none; margin: 0; padding: 0; max-height: 52vh; overflow: auto; }
+.tab-list li { padding: 7px 10px; border-radius: 6px; cursor: pointer; color: var(--text-2); }
+.tab-list li:hover { background: var(--bg-4); color: var(--text); }
