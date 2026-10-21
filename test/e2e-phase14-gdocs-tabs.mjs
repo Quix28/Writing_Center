@@ -27,7 +27,8 @@ g.docs.set('uni', {
 })
 const app = await electron.launch({ ...target, env: { ...process.env, WC_VAULT: vault, WC_HEADLESS: '1', WC_USER_DATA: userData, WC_GOOGLE_API_ROOT: g.url, WC_GOOGLE_TEST_TOKEN: 't' } })
 const page = await app.firstWindow()
-page.on('pageerror', (e) => console.error('pageerror', e))
+const pageErrors = []
+page.on('pageerror', (e) => pageErrors.push(String(e)))
 const command = async (label) => { await page.locator('.cm-content').focus(); await page.keyboard.press('Meta+p'); await page.keyboard.type(label); await page.keyboard.press('Enter') }
 const ok = (text) => page.locator('.toast.ok', { hasText: text }).last().waitFor()
 const typeAtEnd = async (t) => { await page.locator('.cm-content').focus(); await page.keyboard.press('Meta+ArrowDown'); await page.keyboard.type(t); await sleep(800) }
@@ -78,6 +79,29 @@ await check('an edit in THIS tab is pulled in, or shown as a conflict', async ()
   await page.locator('.modal.conflict button', { hasText: 'Cancel' }).click()
 })
 
+await check('comments: this tab\'s comments are listed and highlighted; other tabs and resolved ones are not', async () => {
+  const doc = g.docs.get('uni')
+  doc.comments = [
+    { id: 'c1', content: 'hata yapmaktan korkmamak', createdTime: '2026-10-19T11:50:00Z', resolved: false, author: { displayName: 'Çağlar Ayyıldız' }, quotedFileContent: { value: 'Edited again in Google' }, replies: [{ content: 'Good point', createdTime: '2026-10-19T12:00:00Z', author: { displayName: 'Mentor' } }] },
+    { id: 'c2', content: 'on another tab', createdTime: '2026-10-19T11:51:00Z', resolved: false, author: { displayName: 'X' }, quotedFileContent: { value: 'Instructions were edited by someone' } },
+    { id: 'c3', content: 'already fixed', createdTime: '2026-10-19T11:52:00Z', resolved: true, author: { displayName: 'Y' }, quotedFileContent: { value: 'Edited again' } }
+  ]
+  await page.locator('.tree-row', { hasText: 'Essay' }).click()
+  await command('pull doc')
+  await ok('Pulled')
+  await sleep(800)
+  await page.locator('.side-tabs button', { hasText: 'Comments' }).click()
+  await page.locator('.gcomment').first().waitFor()
+  assert.equal(await page.locator('.gcomment').count(), 1)
+  const card = await page.locator('.gcomment').innerText()
+  assert(card.includes('hata yapmaktan korkmamak') && card.includes('Good point'))
+  assert.match(await page.locator('.comments').innerText(), /1 other comment\(s\) in this Doc are on other tabs/)
+  await page.locator('.cm-gcomment', { hasText: 'Edited again in Google' }).waitFor({ state: 'attached' })
+  await page.locator('.comments-bar input[type=checkbox]').check()
+  assert.equal(await page.locator('.gcomment').count(), 2)
+  assert(!disk('Essay.md').includes('hata yapmaktan'), 'comments are never written into the note')
+})
+
 await check('a whole-document link on a tabbed Doc is refused, never mixing tabs', async () => {
   await page.locator('.tree-row', { hasText: 'Whole' }).click()
   await page.locator('.cm-content').waitFor()
@@ -87,6 +111,7 @@ await check('a whole-document link on a tabbed Doc is refused, never mixing tabs
   assert.equal(g.tabText('uni', 't.instr'), instr)
 })
 
+assert.deepEqual(pageErrors, [], 'no errors in the window')
 await app.close()
 g.close()
 for (const d of [vault, userData]) rmSync(d, { recursive: true, force: true })

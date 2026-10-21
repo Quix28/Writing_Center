@@ -21,6 +21,7 @@ import { Icon } from './icons'
 import { FileViewer } from './FileViewer'
 import { AiCheckPanel } from './AiCheckPanel'
 import { ClaudeTerminal } from './ClaudeTerminal'
+import { CommentsPanel } from './CommentsPanel'
 import { iconFor } from './FileTree'
 
 const GRAPH = '::graph'
@@ -335,6 +336,7 @@ export function App() {
           tabs={[
             { id: 'backlinks', label: 'Backlinks', render: () => <Backlinks active={active} notes={notes} files={files} onOpen={open} /> },
             { id: 'review', label: 'Review', render: () => <ReviewPanel path={active} trigger={reviewTrigger} /> },
+            { id: 'comments', label: 'Comments', render: (visible) => <CommentsPanel path={active} visible={visible} /> },
             { id: 'aicheck', label: 'AI check', render: (visible) => <AiCheckPanel path={active} trigger={aiTrigger} visible={visible} /> },
             { id: 'claude', label: 'Claude Code', render: (visible) => <ClaudeTerminal visible={visible} activePath={active} /> },
             { id: 'assistant', label: 'Assistant', render: () => <AssistantPanel path={active} authMethod={conn.claude?.method} /> },

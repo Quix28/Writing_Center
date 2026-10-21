@@ -10,7 +10,7 @@ import { toast } from './ui'
 import { livePreview, markdownStyle } from './cm/livePreview'
 import { wikilinkClick, wikilinkCompletion } from './cm/wikilinks'
 import { harperLinter } from './cm/harper'
-import { spansField } from './cm/spans'
+import { commentSpansField, spansField } from './cm/spans'
 import { finishReview, inReview, isWriting, minimalChange, quiet, savedText, suggestExtensions } from './cm/suggest'
 
 export { minimalChange }
@@ -50,6 +50,7 @@ export function configureEditor(opts: { files: () => string[]; openLink: (target
     keymap.of([...completionKeymap, ...searchKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
     harperLinter,
     spansField,
+    commentSpansField,
     suggestExtensions,
     EditorView.updateListener.of((u) => {
       const review = inReview(u.state)

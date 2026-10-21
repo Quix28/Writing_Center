@@ -173,6 +173,35 @@ export const create = guarded(async (title: string): Promise<string> => {
 
 /** Doc → markdown via Drive's native Markdown export. */
 export type { TabInfo }
+export type { DocComment } from '../shared/comments'
+
+/** The Doc's comments with replies (read-only), via the Drive API; needs no scope beyond drive.readonly. */
+export const comments = guarded(async (id: string): Promise<import('../shared/comments').DocComment[]> => {
+  const { driveApi } = await apis()
+  const out: import('../shared/comments').DocComment[] = []
+  let pageToken: string | undefined
+  do {
+    const { data } = await driveApi.comments.list({
+      fileId: id,
+      pageSize: 100,
+      pageToken,
+      fields: 'nextPageToken,comments(id,content,createdTime,resolved,deleted,author(displayName),quotedFileContent(value),replies(content,createdTime,deleted,author(displayName)))'
+    })
+    for (const c of data.comments ?? [])
+      if (!c.deleted)
+        out.push({
+          id: c.id ?? '',
+          author: c.author?.displayName ?? 'Someone',
+          content: c.content ?? '',
+          created: c.createdTime ?? '',
+          resolved: !!c.resolved,
+          quote: c.quotedFileContent?.value ?? '',
+          replies: (c.replies ?? []).filter((r) => !r.deleted && r.content).map((r) => ({ author: r.author?.displayName ?? 'Someone', content: r.content ?? '', created: r.createdTime ?? '' }))
+        })
+    pageToken = data.nextPageToken ?? undefined
+  } while (pageToken)
+  return out
+})
 
 /** The document's tabs (Google Docs "document tabs"), in reading order. */
 export const tabs = guarded(async (id: string): Promise<TabInfo[]> => {
