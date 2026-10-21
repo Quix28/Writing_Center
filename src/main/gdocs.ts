@@ -7,7 +7,8 @@ import { CodeChallengeMethod, OAuth2Client, type Credentials } from 'google-auth
 import { docs } from '@googleapis/docs'
 import { drive } from '@googleapis/drive'
 import { mdToDocs } from './mdToDocs'
-import { checkSecret, loadSecrets, saveSecrets } from './secrets'
+import { checkSecret, KEYCHAIN_DENIED, loadSecrets } from './secrets'
+import { loadSettings, saveSettings } from './settings'
 
 const SCOPES = ['https://www.googleapis.com/auth/documents', 'https://www.googleapis.com/auth/drive.readonly']
 const SIGN_IN_TIMEOUT_MS = 5 * 60_000
@@ -25,7 +26,7 @@ function newClient(redirectUri?: string) {
 }
 
 function clientConfig() {
-  const s = loadSecrets()
+  const s = { ...loadSecrets(), ...loadSettings() }
   return {
     clientId: s.googleClientId ?? checkSecret('GOOGLE_CLIENT_ID', process.env.GOOGLE_CLIENT_ID),
     clientSecret: s.googleClientSecret ?? checkSecret('GOOGLE_CLIENT_SECRET', process.env.GOOGLE_CLIENT_SECRET)
@@ -34,7 +35,7 @@ function clientConfig() {
 
 /** The refresh token is encrypted with the OS keychain (Electron safeStorage); never stored in plain text. */
 function saveTokens(tokens: Credentials) {
-  if (!safeStorage.isEncryptionAvailable()) throw new Error('OS keychain encryption is unavailable, so the Google token was not stored.')
+  if (!safeStorage.isEncryptionAvailable()) throw new Error(KEYCHAIN_DENIED)
   writeFileSync(tokenFile(), safeStorage.encryptString(JSON.stringify(tokens)), { mode: 0o600 })
 }
 
@@ -204,7 +205,7 @@ export async function status(): Promise<GoogleStatus> {
 }
 
 export function saveClient(clientId: string, clientSecret: string): Promise<GoogleStatus> {
-  saveSecrets({ googleClientId: checkSecret('Client ID', clientId) ?? null, googleClientSecret: checkSecret('Client secret', clientSecret) ?? null })
+  saveSettings({ googleClientId: checkSecret('Client ID', clientId), googleClientSecret: checkSecret('Client secret', clientSecret) })
   signOut()
   return status()
 }

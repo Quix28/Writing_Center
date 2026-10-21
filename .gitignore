@@ -5,3 +5,4 @@ build/icon-1024.png
 test/.tmp-*
 .DS_Store
 Screenshot *.png
+client_secret_*.json

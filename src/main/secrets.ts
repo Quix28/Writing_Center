@@ -15,8 +15,12 @@ export function loadSecrets(): Secrets {
   }
 }
 
+/** Shown when macOS denied the app its Keychain key (e.g. "Deny" was clicked on the Keychain prompt). */
+export const KEYCHAIN_DENIED =
+  'macOS is not letting Writing Centre use its Keychain key, so this could not be saved securely. Quit the app (⌘Q), open it again, and click “Always Allow” when macOS asks about “writing-centre Safe Storage”.'
+
 export function saveSecrets(patch: Partial<Record<keyof Secrets, string | null>>): void {
-  if (!safeStorage.isEncryptionAvailable()) throw new Error('macOS Keychain encryption is unavailable, so the key was not saved.')
+  if (!safeStorage.isEncryptionAvailable()) throw new Error(KEYCHAIN_DENIED)
   const next: Record<string, string> = { ...loadSecrets() }
   for (const [k, v] of Object.entries(patch)) {
     if (v) next[k] = v
