@@ -139,9 +139,10 @@ export function Connections({ state, onChange, onClose }: { state: ConnectionSta
             <summary>{google?.configured ? 'Change OAuth client' : 'Set up Google access (one time, about 5 minutes)'}</summary>
             <p className="muted small">Google only lets an app sign you in through an OAuth client that belongs to a Google Cloud project, so you create one for yourself:</p>
             <ol className="steps">
-              <li>Turn on the {ext('https://console.cloud.google.com/apis/library/docs.googleapis.com', 'Google Docs API')} and the {ext('https://console.cloud.google.com/apis/library/drive.googleapis.com', 'Google Drive API')} in a project.</li>
-              <li>Set up the {ext('https://console.cloud.google.com/apis/credentials/consent', 'OAuth consent screen')} and add your own Google account as a test user.</li>
-              <li>{ext('https://console.cloud.google.com/apis/credentials', 'Create an OAuth client ID')} of type Desktop app, then paste its ID and secret here.</li>
+              <li>In {ext('https://console.cloud.google.com/projectcreate', 'Google Cloud')}, create a project (or pick one), then enable the {ext('https://console.cloud.google.com/apis/library/docs.googleapis.com', 'Google Docs API')} and the {ext('https://console.cloud.google.com/apis/library/drive.googleapis.com', 'Google Drive API')}.</li>
+              <li>Open {ext('https://console.cloud.google.com/auth/overview', 'Google Auth Platform')} and click Get started: app name Writing Centre, your email, audience External.</li>
+              <li>Under {ext('https://console.cloud.google.com/auth/audience', 'Audience')}, add your own Google account as a test user.</li>
+              <li>Under {ext('https://console.cloud.google.com/auth/clients', 'Clients')}, create a client of type Desktop app, then paste its ID and secret here. Google may only show the secret once.</li>
             </ol>
             <form
               className="field-stack"
