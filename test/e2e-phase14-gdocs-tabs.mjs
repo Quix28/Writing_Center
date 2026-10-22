@@ -90,7 +90,7 @@ await check('comments: this tab\'s comments are listed and highlighted; other ta
   await command('pull doc')
   await ok('Pulled')
   await sleep(800)
-  await page.locator('.side-tabs button', { hasText: 'Comments' }).click()
+  await page.locator('.ribbon [aria-label="Comments"]').click()
   await page.locator('.gcomment').first().waitFor()
   assert.equal(await page.locator('.gcomment').count(), 1)
   const card = await page.locator('.gcomment').innerText()

@@ -23,7 +23,7 @@ const check = async (name, fn) => { await fn(); console.log('✔', name) }
 const doc = () => page.locator('.cm-content').innerText()
 
 await check('tree lists vault files', async () => {
-  await page.getByText('Welcome', { exact: true }).click()
+  await page.locator('.tree-row', { hasText: 'Welcome' }).click()
   await page.locator('.cm-content').waitFor()
 })
 
@@ -55,11 +55,12 @@ await check('cmd+click wikilink opens target; backlinks show source', async () =
   const link = page.locator('.cm-wikilink', { hasText: 'Second' }).first()
   await link.click({ modifiers: ['Meta'] })
   await page.locator('.tab.active', { hasText: 'Second' }).waitFor()
-  await page.locator('.side .link-list', { hasText: 'Welcome' }).waitFor()
+  await page.locator('.ribbon [aria-label="Backlinks"]').click()
+  await page.locator('.view-root .link-list', { hasText: 'Welcome' }).waitFor()
 })
 
 await check('live preview hides markdown off the cursor line', async () => {
-  await page.getByText('Welcome', { exact: true }).first().click()
+  await page.locator('.tree-row', { hasText: 'Welcome' }).click()
   await page.keyboard.press('Meta+ArrowDown')
   const text = await doc()
   assert(text.includes('Some bold and italic text.'), text)
@@ -98,7 +99,7 @@ await check('pending edit is flushed when window closes', async () => {
 await check('reopens with saved content after restart', async () => {
   app = await launch()
   page = await app.firstWindow()
-  await page.getByText('Welcome', { exact: true }).click()
+  await page.locator('.tree-row', { hasText: 'Welcome' }).click()
   await page.waitForFunction(() => document.querySelector('.cm-content')?.innerText.includes('Last words.'))
   await app.close()
 })

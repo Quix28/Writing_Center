@@ -18,10 +18,12 @@ export { minimalChange }
 const SAVE_DELAY = 500
 const states = new Map<string, EditorState>()
 const timers = new Map<string, ReturnType<typeof setTimeout>>()
+/** Every mounted editor (one per pane showing a note) and the note it shows. */
+const shown = new Map<EditorView, string>()
+const reviewSetters = new Map<EditorView, (on: boolean) => void>()
+/** The editor of the note the user is working in: Clawd, the panels and the commands act on it. */
 let view: EditorView | null = null
-let current: string | null = null
 let extensions: Extension[] = []
-let notifyReview: (on: boolean) => void = () => {}
 /** Fired on every keystroke-driven edit; Clawd taps along and restarts its idle timer. */
 export const typingListeners = new Set<() => void>()
 /** Receives the current note's text after each change (null when no note is shown); drives the word count. */
@@ -33,7 +35,8 @@ export const getView = () => view
 export const openFind = () => !!view && openSearchPanel(view)
 /** Lets the headless e2e tests read the live document. */
 Object.assign(window, { wcView: getView })
-export const currentPath = () => current
+export const currentPath = () => (view && shown.get(view)) ?? null
+const viewOf = (path: string) => [...shown].find(([, p]) => p === path)?.[0]
 
 export function configureEditor(opts: { files: () => string[]; openLink: (target: string) => void; extra?: Extension[] }) {
   extensions = [
@@ -54,16 +57,17 @@ export function configureEditor(opts: { files: () => string[]; openLink: (target
     suggestExtensions,
     EditorView.updateListener.of((u) => {
       const review = inReview(u.state)
-      notifyReview(review)
-      if (u.docChanged) notifyDoc(savedText(u.state))
-      if (u.transactions.some((t) => t.isUserEvent('input') || t.isUserEvent('delete'))) typingListeners.forEach((f) => f())
-      if (current && u.transactions.some((t) => !t.annotation(quiet) && (t.docChanged || (review && t.effects.length)))) schedule(current)
+      const path = shown.get(u.view)
+      reviewSetters.get(u.view)?.(review)
+      if (u.docChanged && u.view === view) notifyDoc(savedText(u.state))
+      if (u.view === view && u.transactions.some((t) => t.isUserEvent('input') || t.isUserEvent('delete'))) typingListeners.forEach((f) => f())
+      if (path && u.transactions.some((t) => !t.annotation(quiet) && (t.docChanged || (review && t.effects.length)))) schedule(path)
     }),
     ...(opts.extra ?? [])
   ]
 }
 
-const stateOf = (path: string) => (path === current && view ? view.state : states.get(path))
+const stateOf = (path: string) => viewOf(path)?.state ?? states.get(path)
 
 function schedule(path: string) {
   clearTimeout(timers.get(path))
@@ -94,7 +98,8 @@ export const forgetDoc = (path: string) => states.delete(path)
 export function applyExternal(path: string, content: string) {
   const s = stateOf(path)
   if (!s || s.doc.toString() === content) return
-  if (timers.has(path) || inReview(s) || (path === current && isWriting())) {
+  const v = viewOf(path)
+  if (timers.has(path) || inReview(s) || (v === view && isWriting())) {
     toast(`${path} changed on disk while you were editing. Keeping the version in the app.`)
     return
   }
@@ -102,7 +107,7 @@ export function applyExternal(path: string, content: string) {
     changes: minimalChange(s.doc.toString(), content),
     annotations: [quiet.of(true), Transaction.addToHistory.of(false)]
   }
-  if (path === current && view) view.dispatch(spec)
+  if (v) v.dispatch(spec)
   else states.set(path, s.update(spec).state)
 }
 
@@ -118,7 +123,7 @@ export async function renameDocs(from: string, to: string) {
     states.delete(p)
     states.set(to + p.slice(from.length), s)
   }
-  if (current && (current === from || current.startsWith(from + '/'))) current = to + current.slice(from.length)
+  for (const [v, p] of shown) if (p === from || p.startsWith(from + '/')) shown.set(v, to + p.slice(from.length))
 }
 
 /** Replaces the doc from outside the editor (e.g. Google Docs pull) as one undoable, autosaved change. */
@@ -126,50 +131,65 @@ export function replaceDoc(path: string, content: string) {
   const s = stateOf(path)
   if (!s) return
   const spec = { changes: minimalChange(s.doc.toString(), content) }
-  if (path === current && view) view.dispatch(spec)
+  const v = viewOf(path)
+  if (v) v.dispatch(spec)
   else {
     states.set(path, s.update(spec).state)
     schedule(path)
   }
 }
 
-async function show(path: string) {
-  if (current && view) states.set(current, view.state)
+async function show(v: EditorView, path: string, focus: boolean) {
+  const before = shown.get(v)
+  if (before) states.set(before, v.state)
   if (!states.has(path)) states.set(path, EditorState.create({ doc: await api.vault.read(path), extensions }))
-  current = path
-  view?.setState(states.get(path)!)
-  notifyReview(inReview(states.get(path)!))
-  notifyDoc(savedText(states.get(path)!))
-  view?.focus()
+  shown.set(v, path)
+  v.setState(states.get(path)!)
+  reviewSetters.get(v)?.(inReview(v.state))
+  if (v === view) notifyDoc(savedText(v.state))
+  if (focus) v.focus()
 }
 
-export function Editor({ path }: { path: string }) {
+/** One pane's editor. `active`: this pane holds the note the user is working in. */
+export function Editor({ path, active }: { path: string; active: boolean }) {
   const host = useRef<HTMLDivElement>(null)
+  const own = useRef<EditorView | null>(null)
   const [reviewing, setReviewing] = useState(false)
-  notifyReview = setReviewing
 
   useEffect(() => {
-    view = new EditorView({ parent: host.current! })
+    const v = new EditorView({ parent: host.current! })
+    own.current = v
+    reviewSetters.set(v, setReviewing)
     return () => {
-      if (current && view) states.set(current, view.state)
-      current = null
-      notifyDoc(null)
-      view?.destroy()
-      view = null
+      const p = shown.get(v)
+      if (p) states.set(p, v.state)
+      shown.delete(v)
+      reviewSetters.delete(v)
+      if (view === v) {
+        view = null
+        notifyDoc(null)
+      }
+      v.destroy()
     }
   }, [])
 
   useEffect(() => {
-    show(path).catch((e) => toast(`Could not open ${path}: ${errorText(e)}`))
+    show(own.current!, path, active).catch((e) => toast(`Could not open ${path}: ${errorText(e)}`))
   }, [path])
+
+  useEffect(() => {
+    if (!active) return
+    view = own.current
+    if (shown.get(view!) === path) notifyDoc(savedText(view!.state))
+  }, [active, path])
 
   return (
     <>
       {reviewing && (
         <div className="review-bar">
           Reviewing Claude's suggestions. Nothing is saved until you accept.
-          <button onClick={() => view && finishReview(view, 'all')}>Accept all</button>
-          <button onClick={() => view && finishReview(view, 'accepted')}>Reject remaining</button>
+          <button onClick={() => own.current && finishReview(own.current, 'all')}>Accept all</button>
+          <button onClick={() => own.current && finishReview(own.current, 'accepted')}>Reject remaining</button>
         </div>
       )}
       <div className="editor" ref={host} />

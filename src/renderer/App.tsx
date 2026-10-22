@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { api, errorText, type TreeNode } from './api'
 import { Overlays, ask, toast } from './ui'
 import { FileTree } from './FileTree'
 import { Palette, type Command } from './Palette'
-import { Backlinks, SidePanel } from './SidePanel'
+import { Backlinks } from './Backlinks'
 import { ReviewPanel } from './ReviewPanel'
 import { AssistantPanel } from './AssistantPanel'
 import { isWriting } from './cm/suggest'
@@ -23,8 +24,36 @@ import { AiCheckPanel } from './AiCheckPanel'
 import { ClaudeTerminal } from './ClaudeTerminal'
 import { CommentsPanel } from './CommentsPanel'
 import { iconFor } from './FileTree'
+import { LayoutView, Ribbon, ViewSlot, viewEl, type Ops, type RibbonItem } from './Workspace'
+import { activate, addTab, dropTab, isView, pane, paneById, paneWith, panes, parseLayout, removeTab, renameTabs, resize, type Node, type Tab } from './layout'
+import type { IconName } from './icons'
 
-const GRAPH = '::graph'
+const VIEWS: (RibbonItem & { full?: boolean })[] = [
+  { tab: 'view:graph', label: 'Graph', icon: 'graph', full: true },
+  { tab: 'view:backlinks', label: 'Backlinks', icon: 'link' },
+  { tab: 'view:review', label: 'Review', icon: 'review' },
+  { tab: 'view:comments', label: 'Comments', icon: 'comment' },
+  { tab: 'view:aicheck', label: 'AI check', icon: 'gauge' },
+  { tab: 'view:claude', label: 'Claude Code', icon: 'terminal', full: true },
+  { tab: 'view:assistant', label: 'Assistant', icon: 'sparkle' },
+  { tab: 'view:inspiration', label: 'Inspiration', icon: 'bulb' }
+]
+const viewDef = (t: Tab) => VIEWS.find((v) => v.tab === t)
+const layoutKey = (vault: string) => `wc.layout:${vault}`
+const loadLayout = (vault: string): Node => {
+  try {
+    return parseLayout(localStorage.getItem(layoutKey(vault))) ?? pane()
+  } catch {
+    return pane()
+  }
+}
+const remember = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    /* the layout just won't be remembered */
+  }
+}
 
 const writeGuard = () => {
   if (isWriting()) toast('Claude is still writing. Wait or press Stop.')
@@ -40,32 +69,25 @@ configureEditor({ files: () => filesRef.current, openLink: (t) => openLinkRef.cu
 export function App() {
   const [vault, setVault] = useState<string | null>(null)
   const [tree, setTree] = useState<TreeNode[]>([])
-  const [tabs, setTabs] = useState<string[]>([])
+  const [layout, setLayoutState] = useState<Node>(() => pane())
+  const layoutRef = useRef(layout)
+  const setLayout = (next: Node) => {
+    layoutRef.current = next
+    setLayoutState(next)
+  }
+  const [focusedPane, setFocusedPane] = useState<string | null>(null)
+  /** The note (or file) the user is working in: the panels, Clawd and the Google Docs commands act on it. */
   const [active, setActive] = useState<string | null>(null)
+  const lastFilePane = useRef<string | null>(null)
   const [notes, setNotes] = useState<Record<string, string>>({})
   const [palette, setPalette] = useState(false)
-  const [sideOpen, setSideOpen] = useState(true)
-  const [sideTab, setSideTab] = useState('backlinks')
-  const [sideWidth, setSideWidthState] = useState(() => {
+  const [treeOpen, setTreeOpen] = useState(() => {
     try {
-      return Number(localStorage.getItem('sideWidth')) || 360
+      return localStorage.getItem('wc.treeOpen') !== '0'
     } catch {
-      return 360
+      return true
     }
   })
-  const setSideWidth = (w: number) => {
-    setSideWidthState(w)
-    try {
-      localStorage.setItem('sideWidth', String(w))
-    } catch {
-      /* width just won't be remembered */
-    }
-  }
-  const selectSideTab = (id: string) => {
-    setSideTab(id)
-    // The terminal needs room for Claude Code's layout.
-    if (id === 'claude' && sideWidth < 520) setSideWidth(Math.min(580, Math.max(window.innerWidth - 640, 360)))
-  }
   const [conn, setConn] = useState<ConnectionState>({})
   const [showConnections, setShowConnections] = useState(false)
   const [reviewTrigger, setReviewTrigger] = useState(0)
@@ -74,26 +96,49 @@ export function App() {
   const [inspo, setInspo] = useState<InspirationState | null>(null)
   const files = useMemo(() => flatten(tree), [tree])
   filesRef.current = files
-  const tabsRef = useRef(tabs)
-  tabsRef.current = tabs
+  const allTabs = () => panes(layoutRef.current).flatMap((p) => p.tabs)
 
   const refresh = useCallback(async () => {
     setTree(await api.vault.tree())
     setNotes(await api.vault.notes())
   }, [])
 
-  const open = useCallback((path: string) => {
+  /** Makes a tab the one being worked in: files become the active note. */
+  const focusTab = (paneId: string, tab: Tab) => {
+    setFocusedPane(paneId)
+    if (isView(tab)) return
+    setActive(tab)
+    lastFilePane.current = paneId
+  }
+
+  /** Opens a file or a view: where it already is, else files join the last note pane and views the view pane. */
+  const open = useCallback((tab: Tab) => {
     if (writeGuard()) return
-    setTabs((t) => (t.includes(path) ? t : [...t, path]))
-    setActive(path)
+    const l = layoutRef.current
+    const at = paneWith(l, tab)
+    if (at) {
+      setLayout(activate(l, at.id, tab))
+      return focusTab(at.id, tab)
+    }
+    const all = panes(l)
+    const target = isView(tab)
+      ? all.find((p) => p.tabs.length && p.tabs.every(isView))
+      : (lastFilePane.current && paneById(l, lastFilePane.current)) || all.find((p) => p.tabs.some((t) => !isView(t))) || all.find((p) => !p.tabs.length)
+    const next = target ? addTab(l, target.id, tab) : dropTab(l, (all.find((p) => p.tabs.some((t) => !isView(t))) ?? all[0]).id, isView(tab) ? 'right' : 'left', tab)
+    setLayout(next)
+    focusTab(paneWith(next, tab)!.id, tab)
   }, [])
 
-  const closeTab = useCallback(async (path: string) => {
+  const closeTab = useCallback(async (tab: Tab) => {
     if (writeGuard()) return
-    await closeDoc(path)
-    const rest = tabsRef.current.filter((t) => t !== path)
-    setTabs(rest)
-    setActive((a) => (a === path ? rest[rest.length - 1] ?? null : a))
+    if (!isView(tab)) await closeDoc(tab)
+    const next = removeTab(layoutRef.current, tab)
+    setLayout(next)
+    setActive((a) => {
+      if (a !== tab) return a
+      const p = (lastFilePane.current && paneById(next, lastFilePane.current)) || panes(next).find((x) => x.active && !isView(x.active))
+      return p?.active && !isView(p.active) ? p.active : null
+    })
   }, [])
 
   openLinkRef.current = async (target) => {
@@ -119,7 +164,7 @@ export function App() {
     let timer: ReturnType<typeof setTimeout>
     const off = api.vault.onEvent((e) => {
       if (e.type === 'change') applyExternal(e.path, e.content)
-      if (e.type === 'unlink' && tabsRef.current.includes(e.path)) {
+      if (e.type === 'unlink' && paneWith(layoutRef.current, e.path)) {
         if (isPending(e.path)) toast(`${e.path} was deleted on disk; your unsaved text will recreate it.`)
         else {
           forgetDoc(e.path)
@@ -146,8 +191,7 @@ export function App() {
     await flushAll()
     const v = await api.vault.pick()
     if (!v) return
-    tabsRef.current.forEach(forgetDoc)
-    setTabs([])
+    allTabs().filter((t) => !isView(t)).forEach(forgetDoc)
     setActive(null)
     setVault(v)
     refresh()
@@ -172,11 +216,11 @@ export function App() {
     const to = await ask('Rename / move to (path inside the vault)', from)
     if (!to || to === from) return
     try {
-      await Promise.all(tabsRef.current.filter((t) => under(t, from)).map(flush))
+      await Promise.all(allTabs().filter((t) => under(t, from)).map(flush))
       await api.vault.move(from, to)
       await renameDocs(from, to)
       const map = (p: string) => (under(p, from) ? to + p.slice(from.length) : p)
-      setTabs((t) => t.map(map))
+      setLayout(renameTabs(layoutRef.current, map))
       setActive((a) => (a ? map(a) : a))
       await refresh()
     } catch (e) {
@@ -187,7 +231,7 @@ export function App() {
   const remove = async (path: string) => {
     if (!confirm(`Move "${path}" to the trash?`)) return
     try {
-      for (const t of tabsRef.current.filter((t) => under(t, path))) await closeTab(t)
+      for (const t of allTabs().filter((t) => under(t, path))) await closeTab(t)
       await api.vault.trash(path)
       await refresh()
     } catch (e) {
@@ -195,14 +239,43 @@ export function App() {
     }
   }
 
+  const toggleTree = () =>
+    setTreeOpen((o) => {
+      remember('wc.treeOpen', o ? '0' : '1')
+      return !o
+    })
+  const focusedTab = () => paneById(layoutRef.current, focusedPane ?? '')?.active ?? null
+
+  // Each vault remembers its own layout. Tabs of files that no longer exist are dropped once the file list is known.
+  const pruned = useRef<string | null>(null)
+  useEffect(() => {
+    if (!vault) return
+    pruned.current = null
+    lastFilePane.current = null
+    const l = loadLayout(vault)
+    setLayout(l)
+    const first = panes(l).find((p) => p.active && !isView(p.active))
+    setActive(first?.active ?? null)
+    setFocusedPane(first?.id ?? panes(l)[0].id)
+    if (first) lastFilePane.current = first.id
+  }, [vault])
+  useEffect(() => {
+    if (!vault || !tree.length || pruned.current === vault) return
+    pruned.current = vault
+    const gone = allTabs().filter((t) => !isView(t) && !files.includes(t))
+    if (gone.length) setLayout(gone.reduce(removeTab, layoutRef.current))
+  }, [vault, tree, files])
+  useEffect(() => {
+    if (vault) remember(layoutKey(vault), JSON.stringify(layout))
+  }, [vault, layout])
+
   const toggleClawd = () => {
     setClawdOn(!clawdOn)
     api.settings.set({ clawd: !clawdOn })
   }
 
   const inspire = async (a: { passage: string; issue: string }) => {
-    setSideOpen(true)
-    setSideTab('inspiration')
+    open('view:inspiration')
     setInspo({ passage: a.passage })
     try {
       setInspo({ passage: a.passage, items: await api.claude.inspire(a) })
@@ -218,11 +291,13 @@ export function App() {
     { label: 'New note', run: () => newEntry('', false) },
     { label: 'New folder', run: () => newEntry('', true) },
     { label: 'New canvas (mind map)', run: () => newEntry('', false, '.canvas') },
-    { label: 'Open graph view', run: () => open(GRAPH) },
-    { label: 'Toggle side panel', run: () => setSideOpen((s) => !s) },
-    { label: 'Review content (Claude)', run: () => (setSideOpen(true), setSideTab('review'), setReviewTrigger((n) => n + 1)) },
-    { label: 'AI check: score this note (Claude + local detector)', run: () => (setSideOpen(true), setSideTab('aicheck'), setAiTrigger((n) => n + 1)) },
-    { label: 'Open writing assistant', run: () => (setSideOpen(true), setSideTab('assistant')) },
+    { label: 'Open graph view', run: () => open('view:graph') },
+    { label: 'Toggle file list', run: () => toggleTree() },
+    { label: 'Review content (Claude)', run: () => (open('view:review'), setReviewTrigger((n) => n + 1)) },
+    { label: 'AI check: score this note (Claude + local detector)', run: () => (open('view:aicheck'), setAiTrigger((n) => n + 1)) },
+    { label: 'Open writing assistant', run: () => open('view:assistant') },
+    { label: 'Open Claude Code', run: () => open('view:claude') },
+    ...VIEWS.filter((v) => !['view:graph', 'view:assistant', 'view:claude'].includes(v.tab)).map((v) => ({ label: `Open ${v.label}`, run: () => open(v.tab) })),
     { label: clawdOn ? 'Turn Clawd off' : 'Turn Clawd on', run: toggleClawd },
     ...(active?.endsWith('.md')
       ? [
@@ -234,14 +309,20 @@ export function App() {
       : []),
     { label: live.on ? 'Google Docs: Turn live sync off' : 'Google Docs: Turn live sync on', run: gdocs.toggleLive },
     { label: 'Google Docs: Sign out', run: gdocs.signOut },
-    ...(active ? [{ label: 'Close tab', run: () => closeTab(active) }, { label: 'Rename current file', run: () => rename(active) }] : []),
+    ...(focusedTab() ? [{ label: 'Close tab', run: () => closeTab(focusedTab()!) }] : []),
+    ...(active ? [{ label: 'Rename current file', run: () => rename(active) }] : []),
     ...files.map((f) => ({ label: `Open: ${f}`, run: () => open(f) }))
   ]
 
+  /** ⌃Tab cycles the tabs of the focused pane; from a pane of views (e.g. the terminal), the notes pane's tabs. */
   const cycleTab = (step: 1 | -1) => {
-    const list = tabsRef.current
-    if (list.length < 2 || writeGuard()) return
-    setActive((a) => list[(list.indexOf(a ?? '') + step + list.length) % list.length])
+    const l = layoutRef.current
+    const focused = paneById(l, focusedPane ?? '')
+    const p = (focused?.tabs.some((t) => !isView(t)) && focused) || paneById(l, lastFilePane.current ?? '') || focused || panes(l)[0]
+    if (p.tabs.length < 2 || writeGuard()) return
+    const next = p.tabs[(p.tabs.indexOf(p.active ?? '') + step + p.tabs.length) % p.tabs.length]
+    setLayout(activate(layoutRef.current, p.id, next))
+    focusTab(p.id, next)
   }
   const cycleTabRef = useRef(cycleTab)
   cycleTabRef.current = cycleTab
@@ -287,63 +368,87 @@ export function App() {
       </div>
     )
 
-  const tabLabel = (t: string) => (t === GRAPH ? 'Graph' : t.split('/').pop()!.replace(/\.(md|canvas)$/, ''))
-  const tabIcon = (t: string) => (t === GRAPH ? 'graph' : iconFor({ name: t }))
+  const tabLabel = (t: Tab) => viewDef(t)?.label ?? t.split('/').pop()!.replace(/\.(md|canvas)$/, '')
+  const tabIcon = (t: Tab): IconName => viewDef(t)?.icon ?? iconFor({ name: t })
   const isText = (t: string | null) => !!t && /\.(md|txt)$/i.test(t)
+  const shownViews = new Set(panes(layout).map((p) => p.active).filter((t): t is Tab => !!t && isView(t)))
+
+  const renderView = (t: Tab, visible: boolean) => {
+    switch (t) {
+      case 'view:graph': return <Graph notes={notes} files={files} onOpen={open} />
+      case 'view:backlinks': return <Backlinks active={active} notes={notes} files={files} onOpen={open} />
+      case 'view:review': return <ReviewPanel path={active} trigger={reviewTrigger} />
+      case 'view:comments': return <CommentsPanel path={active} visible={visible} />
+      case 'view:aicheck': return <AiCheckPanel path={active} trigger={aiTrigger} visible={visible} />
+      case 'view:claude': return <ClaudeTerminal visible={visible} activePath={active} />
+      case 'view:assistant': return <AssistantPanel path={active} authMethod={conn.claude?.method} />
+      case 'view:inspiration': return <InspirationPanel state={inspo} />
+    }
+    return null
+  }
+
+  const ops: Ops = {
+    label: tabLabel,
+    icon: tabIcon,
+    focused: focusedPane,
+    body: (t, p) => {
+      if (isView(t)) return <ViewSlot tab={t} />
+      if (isText(t))
+        return (
+          <>
+            <Editor key={p.id} path={t} active={t === active} />
+            {t === active && clawdOn && <Clawd path={t} onInspire={inspire} autoReview={conn.claude?.method !== 'subscription'} />}
+          </>
+        )
+      if (t.endsWith('.canvas')) return <Canvas path={t} notes={notes} onOpen={open} />
+      return <FileViewer path={t} />
+    },
+    onFocus: (id) => {
+      if (id === focusedPane) return
+      const t = paneById(layoutRef.current, id)?.active
+      if (t) focusTab(id, t)
+      else setFocusedPane(id)
+    },
+    onActivate: (id, t) => {
+      if (writeGuard()) return
+      setLayout(activate(layoutRef.current, id, t))
+      focusTab(id, t)
+    },
+    onClose: closeTab,
+    onDrop: (id, zone, t) => {
+      if (writeGuard()) return
+      if (!isView(t) && !files.includes(t)) return
+      const next = dropTab(layoutRef.current, id, zone, t)
+      setLayout(next)
+      const at = paneWith(next, t)
+      if (at) focusTab(at.id, t)
+    },
+    onResize: (id, sizes) => setLayout(resize(layoutRef.current, id, sizes)),
+    ownsFileDrop: (t) => t.endsWith('.canvas')
+  }
 
   return (
-    <div className={`shell ${sideOpen ? '' : 'no-side'}`} style={{ gridTemplateColumns: sideOpen ? `252px minmax(0, 1fr) ${sideWidth}px` : '252px minmax(0, 1fr)' }}>
-      <FileTree
-        vaultName={vault.replace(/\/+$/, '').split('/').pop() || vault}
-        onPickVault={pickVault}
-        nodes={tree}
-        active={active}
-        onOpen={open}
-        onNew={newEntry}
-        onRename={rename}
-        onDelete={remove}
-        onGraph={() => open(GRAPH)}
-        onNewCanvas={() => newEntry('', false, '.canvas')}
-      />
-      <main className="center">
-        <div className="tabs">
-          {tabs.map((t) => (
-            <div key={t} className={`tab ${t === active ? 'active' : ''}`} onClick={() => !writeGuard() && setActive(t)} title={t}>
-              <Icon name={tabIcon(t)} size={14} />
-              <span>{tabLabel(t)}</span>
-              <button onClick={(e) => (e.stopPropagation(), closeTab(t))} aria-label={`Close ${tabLabel(t)}`}><Icon name="close" size={12} /></button>
-            </div>
-          ))}
-        </div>
-        {isText(active) && <Editor path={active!} />}
-        {active && active !== GRAPH && !isText(active) && !active.endsWith('.canvas') && <FileViewer path={active} />}
-        {isText(active) && clawdOn && <Clawd path={active!} onInspire={inspire} autoReview={conn.claude?.method !== 'subscription'} />}
-        {active?.endsWith('.canvas') && <Canvas path={active} notes={notes} onOpen={open} />}
-        {active === GRAPH && <Graph notes={notes} files={files} onOpen={open} />}
-        {!active && (
-          <div className="empty">
-            <p>Open a note from the sidebar, or press ⌘P to jump to any note or command.</p>
-            <button onClick={() => newEntry('', false)}><Icon name="plus" size={14} /> New note</button>
-          </div>
-        )}
-      </main>
-      {vault && (
-        <SidePanel
-          hidden={!sideOpen}
-          width={sideWidth}
-          onResize={setSideWidth}
-          selected={sideTab}
-          onSelect={selectSideTab}
-          tabs={[
-            { id: 'backlinks', label: 'Backlinks', render: () => <Backlinks active={active} notes={notes} files={files} onOpen={open} /> },
-            { id: 'review', label: 'Review', render: () => <ReviewPanel path={active} trigger={reviewTrigger} /> },
-            { id: 'comments', label: 'Comments', render: (visible) => <CommentsPanel path={active} visible={visible} /> },
-            { id: 'aicheck', label: 'AI check', render: (visible) => <AiCheckPanel path={active} trigger={aiTrigger} visible={visible} /> },
-            { id: 'claude', label: 'Claude Code', render: (visible) => <ClaudeTerminal visible={visible} activePath={active} /> },
-            { id: 'assistant', label: 'Assistant', render: () => <AssistantPanel path={active} authMethod={conn.claude?.method} /> },
-            { id: 'inspiration', label: 'Inspiration', render: () => <InspirationPanel state={inspo} /> }
-          ]}
+    <div className={`shell ${treeOpen ? '' : 'no-tree'}`}>
+      <Ribbon items={VIEWS} visible={(t) => shownViews.has(t)} onOpen={open} treeOpen={treeOpen} onTree={toggleTree} onPalette={() => setPalette(true)} onConnections={() => setShowConnections(true)} />
+      {treeOpen && (
+        <FileTree
+          vaultName={vault.replace(/\/+$/, '').split('/').pop() || vault}
+          onPickVault={pickVault}
+          nodes={tree}
+          active={active}
+          onOpen={open}
+          onNew={newEntry}
+          onRename={rename}
+          onDelete={remove}
+          onGraph={() => open('view:graph')}
+          onNewCanvas={() => newEntry('', false, '.canvas')}
         />
+      )}
+      <main className="workspace">
+        <LayoutView node={layout} ops={ops} />
+      </main>
+      {panes(layout).flatMap((p) => p.tabs.filter(isView)).map((t) =>
+        createPortal(renderView(t, shownViews.has(t)), viewEl(t, `view-root ${viewDef(t)?.full ? 'full' : ''} view-${t.slice(5)}`), t)
       )}
       <StatusBar conn={conn} clawdOn={clawdOn} onClawd={toggleClawd} onConnections={() => setShowConnections(true)} onPalette={() => setPalette(true)} />
       {palette && <Palette commands={commands} onClose={() => setPalette(false)} />}

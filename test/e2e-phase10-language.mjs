@@ -60,7 +60,7 @@ await check('right-click on a Turkish typo offers macOS suggestions (menu record
 
 await check('Claude is told to reply in the note\'s language', async () => {
   await open('Turkce')
-  await page.locator('.side-tabs button', { hasText: 'Review' }).click()
+  await page.locator('.ribbon [aria-label="Review"]').click()
   await page.locator('.review > button').click()
   await page.locator('.review', { hasText: 'No findings' }).waitFor()
   assert.match(mock.requests.at(-1).body.system, /same language as their text/)

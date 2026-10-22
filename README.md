@@ -102,10 +102,17 @@ Test-only variables (leave them unset in normal use): `WC_HEADLESS`, `WC_VAULT`,
 
 ## Using it
 
+- **Left bar and layout:** the thin bar on the far left holds every view: Files (shows or hides the file list), Graph, Backlinks, Review, Comments, AI check, Claude Code, Assistant and Inspiration, plus the command palette and Connections at the bottom.
+  - Click a view to open it. It opens next to your notes, or comes to the front if it's already open.
+  - **Drag** a view from the bar, a file from the file list, or any tab onto a pane. Drop it on a pane's **edge** to split that pane (left, right, top or bottom), or in the **middle** to add it as a tab. A blue outline shows where it will land.
+  - Any mix works: four notes side by side, three notes and Claude Code, Claude Code under one note, and so on. Panes in a row share the space equally; drag the lines between them to resize.
+  - Moving a view keeps it running: the Claude Code session, the Assistant chat and the Graph's zoom survive being dragged to another pane.
+  - Closing a pane's last tab removes the pane. The layout is remembered per vault and comes back on the next launch.
+  - The panels (Backlinks, Review, Comments, AI check, Assistant) and Clawd follow the note you last clicked into.
 - **Keyboard:**
   - **⌘P** opens the command palette: files, plus every command below.
   - **⌘F** opens find & replace in the open note, from anywhere in the app. **⌘G** / **⇧⌘G** go to the next / previous match, **Esc** closes it.
-  - **⌃Tab** / **⌃⇧Tab** go to the next / previous tab, even from inside the Claude Code terminal.
+  - **⌃Tab** / **⌃⇧Tab** go to the next / previous tab of the pane you're in. From a pane of views (e.g. the Claude Code terminal) they cycle your notes.
 - **File tree:** hover a row for rename/move (✎) and trash (✕). Folders get + note and + folder buttons.
 - **Wikilinks:** type `[[` to autocomplete. Click a rendered link, or ⌘-click anywhere, to open it. A link to a note that doesn't exist creates that note.
 - **Canvas:** use the **Canvas** button or *New canvas (mind map)*.
@@ -125,14 +132,14 @@ Test-only variables (leave them unset in normal use): `WC_HEADLESS`, `WC_VAULT`,
   - It's exactly your terminal Claude Code: your settings, CLAUDE.md, skills, plugins, permission mode and prompts, using your Claude plan.
   - **Ask about this note** mentions the open note (`@note.md`). **Send selection** pastes the editor selection as one block. **Restart** starts a fresh session.
   - When Claude edits a note, the editor updates right away. The session keeps running while you switch tabs or notes.
-  - The side panel widens for the terminal; drag its left edge to resize any tab.
+  - Drag it anywhere, e.g. under the note you're working on, and resize it with the lines between panes.
   - The app starts it through your login shell, so `claude` must work in Terminal.app.
   - In this tab Claude can do whatever your own Claude Code may do in that folder, including edits in auto mode if that's your setting.
 - **AI check:** the **AI check** tab, or ⌘P → *AI check*.
   - Shows two independent scores (Claude and the local detector), a score for each paragraph from both, and highlights coloured by whichever score you pick.
   - Claude also lists the clearest tells, each with **Propose rewrite**.
   - Neither score proves who wrote a text.
-- **Graph:** the **Graph** button. It's built from `[[wikilinks]]`; click a note to open it.
+- **Graph:** the **Graph** button or the left bar. It's built from `[[wikilinks]]`; click a note to open it.
 - **Review content:** palette command or the **Review** tab. Click a quote to jump to it in the editor. **Propose fix** opens the fix as a suggestion diff.
 - **Assistant:** in the **Assistant** tab.
   - Pick the Claude model at the top. The choice is saved and used by every AI feature.
@@ -189,9 +196,10 @@ Test-only variables (leave them unset in normal use): `WC_HEADLESS`, `WC_VAULT`,
 | **Real** subscription run: a Review through the actual Claude Code login returned correct findings with exact quotes | one manual headless run on Haiku |
 | The packaged **Writing Centre.app** passes every e2e suite above | `WC_APP=… npm run e2e` |
 | Headless tests never touch the real macOS Keychain (Chromium mock keychain) | checked with a throwaway app name |
-| Claude Code tab: real terminal (node-pty + xterm.js) in the vault folder; typing, **Ask about this note**, the session surviving tab switches; the panel widening; Clawd staying in the editor area; side-panel tabs keeping their state; AI check highlighting low scores too | `test/e2e-phase12-terminal.mjs` (stand-in `claude`) |
+| Claude Code tab: real terminal (node-pty + xterm.js) in the vault folder; typing, **Ask about this note**, the session surviving tab switches; Clawd staying in the editor area; views keeping their state; AI check highlighting low scores too | `test/e2e-phase12-terminal.mjs` (stand-in `claude`) |
 | **Real** Claude Code starts in the app's terminal (banner, model, plan, prompt), including with a Finder-like bare PATH | headless runs + screenshot |
 | ⌘F find (in the editor and from elsewhere) highlights matches; ⌃Tab / ⌃⇧Tab cycle and wrap, also from the terminal | `test/e2e-phase13-keys.mjs` |
+| Left bar and layout: every view is in the bar; four notes side by side with separate editors that each save their own note; Claude Code dragged from the bar docks under a note, then moves to another pane without restarting; dividers resize; closing a pane's last tab removes it; the layout is restored after a restart. Layout operations (splits, moves, equal sharing, renames, saved-layout validation) | `test/e2e-phase16-layout.mjs` + `test/layout.test.ts` |
 | Every file type is listed; PNG, PDF (built-in viewer), `.docx` (sandboxed) and `.pptx` (slide text) open; unknown types offer the default app; `vault://` refuses paths outside the vault | `test/e2e-phase8-files.mjs` (files generated with macOS tools) |
 | AI check: two separate scores, per-paragraph scores from both, highlights by either source, tells become suggest-mode rewrites | `test/e2e-phase9-aicheck.mjs` (mock detector by default) |
 | **Real** SlopTotal: installed, started by the app on 127.0.0.1, scored a note, and stopped when the app quit | `WC_REAL_DETECTOR=1 node test/e2e-phase9-aicheck.mjs` |
@@ -237,6 +245,7 @@ Test-only variables (leave them unset in normal use): `WC_HEADLESS`, `WC_VAULT`,
 
 ### Everything else
 
+- **Layout:** a note or view can be in only one pane at a time; opening it again brings that pane forward, and dragging it moves it. Panes can't be popped out into separate windows.
 - **Live preview:** hides markdown syntax and styles headings, emphasis, links and wikilinks. It doesn't render tables, images, callouts, or embeds.
 - **Hidden paths:** the app never creates or writes hidden paths such as `.claude/`, `.git/` or `.obsidian/`.
 - **Files:**

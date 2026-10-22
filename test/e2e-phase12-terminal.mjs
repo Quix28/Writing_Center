@@ -36,7 +36,7 @@ const env = { ...process.env, WC_VAULT: tmp('vault'), WC_HEADLESS: '1', WC_USER_
 const app = await electron.launch({ ...target, env })
 const page = await app.firstWindow()
 page.on('pageerror', (e) => console.error('pageerror', e))
-const tab = (label) => page.locator('.side-tabs button', { hasText: label }).click()
+const tab = (label) => page.locator('.ribbon [aria-label="' + label + '"]').click()
 const screen = () => page.locator('.claude-term .xterm-rows').innerText()
 
 await check('Claude Code does not start until its tab is opened', async () => {
@@ -49,10 +49,9 @@ await check('Claude Code tab runs claude in the vault folder, in a real terminal
   await tab('Claude Code')
   await page.waitForFunction(() => document.querySelector('.claude-term .xterm-rows')?.innerText.includes('FAKE CLAUDE'), null, { timeout: 15000 })
   assert((await screen()).replace(/\s+/g, '').includes(tmp('vault').replace(/\/$/, '').replace(/\s+/g, '')), 'runs in the vault')
-  assert((await page.locator('.side').evaluate((e) => e.getBoundingClientRect().width)) >= 500, 'panel widened for the terminal')
   await page.waitForTimeout(1600) // Clawd glides to his new spot over 1.2s
   const clawd = await page.locator('.clawd-body').boundingBox()
-  const center = await page.locator('.center').boundingBox()
+  const center = await page.locator('.pane-body', { has: page.locator('.cm-editor') }).boundingBox()
   assert(clawd.x + clawd.width <= center.x + center.width + 1, 'Clawd stays inside the editor area after the panel widens')
 })
 
@@ -111,7 +110,7 @@ await check('opened like from Finder (bare PATH), it still finds claude in ~/.lo
   const finderApp = await electron.launch({ ...target, env: bare })
   const p = await finderApp.firstWindow()
   await p.locator('.tree-row', { hasText: 'Essay' }).click()
-  await p.locator('.side-tabs button', { hasText: 'Claude Code' }).click()
+  await p.locator('.ribbon [aria-label="Claude Code"]').click()
   await p.waitForFunction(() => document.querySelector('.claude-term .xterm-rows')?.innerText.includes('FOUND IN LOCAL BIN'), null, { timeout: 15000 })
   await finderApp.close()
   rmSync(home, { recursive: true, force: true })

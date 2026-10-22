@@ -35,7 +35,7 @@ await check('"Use my Claude subscription" signs Claude Code in and connects', as
 
 await check('review runs through `claude -p` with isolated settings and no API key', async () => {
   await page.locator('.tree-row', { hasText: 'Essay' }).click()
-  await page.locator('.side-tabs button', { hasText: 'Assistant' }).click()
+  await page.locator('.ribbon [aria-label="Assistant"]').click()
   await page.locator('.model-picker option', { hasText: 'Sonnet (latest)' }).waitFor({ state: 'attached' })
   await page.locator('.cm-content').focus()
   await page.keyboard.press('Meta+p')
@@ -50,7 +50,7 @@ await check('review runs through `claude -p` with isolated settings and no API k
 })
 
 await check('write mode streams the plan\'s output into the editor', async () => {
-  await page.locator('.side-tabs button', { hasText: 'Assistant' }).click()
+  await page.locator('.ribbon [aria-label="Assistant"]').click()
   await page.locator('.mode-toggle button', { hasText: 'Write' }).click()
   await page.evaluate(() => { const v = window.wcView(); v.dispatch({ selection: { anchor: v.state.doc.toString().indexOf('A second') } }) })
   await page.locator('.chat-input textarea').fill('Rewrite')
@@ -85,7 +85,7 @@ await check('Find inspiration uses Claude Code WebSearch and drops unsourced ite
 })
 
 await check('a plan usage limit shows a clear toast', async () => {
-  await page.locator('.side-tabs button', { hasText: 'Assistant' }).click()
+  await page.locator('.ribbon [aria-label="Assistant"]').click()
   await page.locator('.mode-toggle button', { hasText: 'Suggest' }).click()
   await page.locator('.chat-input textarea').fill('LIMIT test')
   await page.keyboard.press('Enter')

@@ -36,7 +36,7 @@ const page = await app.firstWindow()
 page.on('pageerror', (e) => console.error('pageerror', e))
 const doc = () => page.evaluate(() => window.wcView().state.doc.toString())
 const openNote = async (name) => { await page.locator('.tree-row', { hasText: name }).first().click(); await page.locator('.cm-content').waitFor() }
-const side = (label) => page.locator('.side-tabs button', { hasText: label }).click()
+const side = (label) => page.locator('.ribbon [aria-label="' + label + '"]').click()
 const toast = () => page.locator('.toast').last().innerText()
 
 await check('harper underlines a grammar error locally and quick-fix applies it', async () => {

@@ -103,7 +103,7 @@ await check('graph view builds nodes and edges from wikilinks', async () => {
   await page.locator('.tree-toolbar button', { hasText: 'Graph' }).click()
   await page.locator('.graph-node').first().waitFor()
   assert.equal(await page.locator('.graph-node').count(), 3)
-  await page.waitForFunction(() => document.querySelectorAll('.react-flow__edge').length === 3)
+  await page.waitForFunction(() => document.querySelectorAll('.view-root.view-graph .react-flow__edge').length === 3)
   await page.locator('.graph-node', { hasText: 'Ideas' }).click()
   await page.locator('.tab.active', { hasText: 'Ideas' }).waitFor()
 })

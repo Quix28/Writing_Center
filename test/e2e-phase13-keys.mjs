@@ -17,7 +17,7 @@ const check = async (name, fn) => { await fn(); console.log('✔', name) }
 const app = await electron.launch({ ...target, env: { ...process.env, WC_VAULT: tmp('vault'), WC_HEADLESS: '1', WC_USER_DATA: tmp('userdata'), WC_CLAUDE_BIN: tmp('bin') + 'claude' } })
 const page = await app.firstWindow()
 page.on('pageerror', (e) => console.error('pageerror', e))
-const activeTab = () => page.locator('.tab.active').innerText()
+const activeTab = () => page.locator('.tab.active:not(.view-tab)').innerText()
 
 await check('⌘F opens find in the note and highlights every match', async () => {
   await page.locator('.tree-row', { hasText: 'Essay' }).click()
@@ -33,7 +33,7 @@ await check('⌘F opens find in the note and highlights every match', async () =
 })
 
 await check('⌘F also works when the focus is outside the editor', async () => {
-  await page.locator('.side-tabs button', { hasText: 'Backlinks' }).click()
+  await page.locator('.ribbon [aria-label="Backlinks"]').click()
   await page.keyboard.press('Meta+f')
   await page.locator('.cm-search input[name=search]').waitFor()
   assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('name')), 'search')
@@ -52,7 +52,7 @@ await check('⌃Tab / ⌃⇧Tab cycle through open tabs and wrap around', async 
 })
 
 await check('⌃Tab works from inside the Claude Code terminal too', async () => {
-  await page.locator('.side-tabs button', { hasText: 'Claude Code' }).click()
+  await page.locator('.ribbon [aria-label="Claude Code"]').click()
   await page.waitForFunction(() => document.querySelector('.claude-term .xterm-rows')?.innerText.includes('READY'))
   await page.locator('.claude-term .xterm').click()
   await page.keyboard.press('Control+Tab')
