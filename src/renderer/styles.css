@@ -332,7 +332,6 @@ details.option { display: block; }
 .term-host .xterm { height: 100%; }
 .term-host .xterm-viewport { background: transparent !important; }
 .term-error { margin: 0; }
-.term-hint { margin: 0; }
 .cm-ai-low { background: #82c09512; box-shadow: inset 3px 0 0 #82c09588; }
 
 /* ---------- find & replace (⌘F) ---------- */

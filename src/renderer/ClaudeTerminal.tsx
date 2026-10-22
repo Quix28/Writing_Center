@@ -130,7 +130,6 @@ export function ClaudeTerminal({ visible, activePath }: { visible: boolean; acti
       {error && <p className="error-text term-error">{error}</p>}
       {notice && <p className="muted small term-error" role="status">{notice}</p>}
       <div className="term-host" ref={host} />
-      <p className="muted small term-hint">Runs your own Claude Code in this vault, with your settings, skills and permission prompts. Notes it edits update in the editor.</p>
     </div>
   )
 }
