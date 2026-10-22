@@ -10,7 +10,7 @@ import { isWriting } from './cm/suggest'
 import { Clawd } from './Clawd'
 import { InspirationPanel, type InspirationState } from './InspirationPanel'
 import './clawd.css'
-import { GDocsDialogs, gdocs } from './GDocs'
+import { GDocsDialogs, gdocs, live } from './GDocs'
 import { Editor, applyExternal, closeDoc, configureEditor, flush, flushAll, forgetDoc, hasPending, isPending, openFind, renameDocs } from './Editor'
 import { resolveLink } from '../shared/links'
 import { Canvas } from './Canvas'
@@ -232,6 +232,7 @@ export function App() {
           { label: 'Google Docs: Pull Doc → note', run: () => gdocs.pull(active) }
         ]
       : []),
+    { label: live.on ? 'Google Docs: Turn live sync off' : 'Google Docs: Turn live sync on', run: gdocs.toggleLive },
     { label: 'Google Docs: Sign out', run: gdocs.signOut },
     ...(active ? [{ label: 'Close tab', run: () => closeTab(active) }, { label: 'Rename current file', run: () => rename(active) }] : []),
     ...files.map((f) => ({ label: `Open: ${f}`, run: () => open(f) }))

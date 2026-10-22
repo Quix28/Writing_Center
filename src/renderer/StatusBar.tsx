@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ConnectionState } from './Connections'
 import { docListeners } from './Editor'
 import { Icon } from './icons'
+import { LiveBadge, gdocs } from './GDocs'
 
 function WordCount() {
   const [words, setWords] = useState<number | null>(null)
@@ -32,6 +33,7 @@ export function StatusBar(p: { conn: ConnectionState; clawdOn: boolean; onClawd:
       <button className="status-item" onClick={p.onConnections} title="Open Connections">
         {dot(google?.connected)} Google Docs{google && !google.connected ? ': not connected' : ''}
       </button>
+      <LiveBadge onClick={gdocs.toggleLive} />
       <span className="status-spacer" />
       <WordCount />
       <button className="status-item clawd-toggle" onClick={p.onClawd} aria-pressed={p.clawdOn} title="Show or hide Clawd, the review companion">

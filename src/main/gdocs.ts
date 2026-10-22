@@ -154,6 +154,13 @@ export const meta = guarded(async (id: string): Promise<DocMeta> => {
   return { id: data.id!, name: data.name!, modifiedTime: data.modifiedTime! }
 })
 
+/** The Doc's current revision ID: it changes with every edit, so live sync polls it instead of the content. */
+export const revision = guarded(async (id: string): Promise<string> => {
+  const { docsApi } = await apis()
+  const { data } = await docsApi.documents.get({ documentId: id, fields: 'revisionId' })
+  return data.revisionId ?? ''
+})
+
 export const list = guarded(async (query: string): Promise<DocMeta[]> => {
   const { driveApi } = await apis()
   const name = query.trim().replace(/\\/g, '\\\\').replace(/'/g, "\\'")
@@ -172,7 +179,6 @@ export const create = guarded(async (title: string): Promise<string> => {
   return data.documentId!
 })
 
-/** Doc → markdown via Drive's native Markdown export. */
 export type { TabInfo }
 export type { DocComment } from '../shared/comments'
 
@@ -218,23 +224,23 @@ async function refuseIfTabbed(id: string) {
     throw new Error('This Google Doc has several tabs. Link the note to one tab: ⌘P → "Google Docs: Link to an existing doc…", then pick the tab.')
 }
 
-async function getTab(id: string, tabId: string) {
+/** One tab's content; without a tab ID, the first tab (the whole document, for a Doc without tabs). */
+async function getTab(id: string, tabId?: string) {
   const { docsApi } = await apis()
   const { data } = await docsApi.documents.get({ documentId: id, includeTabsContent: true })
-  const tab = findTab(data.tabs ?? [], tabId)
+  const tab = tabId ? findTab(data.tabs ?? [], tabId) : data.tabs?.[0]
   if (!tab?.documentTab) throw new Error('That tab no longer exists in the Google Doc. Link the note again to pick another tab.')
   return tab.documentTab
 }
 
-/** Doc → markdown: the whole document via Drive's Markdown export, or a single tab converted from its content. */
+/**
+ * Doc → markdown, converted from the tab's content (the same converter push compares against, so a Doc that matches
+ * the note reads back as matching).
+ */
 export const pull = guarded(async (id: string, tabId?: string): Promise<{ markdown: string; modifiedTime: string }> => {
-  const { driveApi } = await apis()
-  // Read the time first: an edit landing mid-export then shows up as newer on the next sync instead of being missed.
+  if (!tabId) await refuseIfTabbed(id)
   const { modifiedTime } = await meta(id)
-  if (tabId) return { markdown: tabToMarkdown(await getTab(id, tabId)), modifiedTime }
-  await refuseIfTabbed(id)
-  const res = await driveApi.files.export({ fileId: id, mimeType: 'text/markdown' }, { responseType: 'text' })
-  return { markdown: String(res.data), modifiedTime }
+  return { markdown: tabToMarkdown(await getTab(id, tabId)), modifiedTime }
 })
 
 /**

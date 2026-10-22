@@ -58,10 +58,6 @@ export function startGoogleMock() {
         if (!u.searchParams.get('fields')) return json(400, { error: { code: 400, message: 'fields is required for comments' } })
         return json(200, { comments: docs.get(m[1])?.comments ?? [] })
       }
-      if ((m = /^\/drive\/v3\/files\/([^/]+)\/export$/.exec(u.pathname))) {
-        res.writeHead(200, { 'content-type': 'text/markdown' })
-        return res.end(docs.get(m[1]).markdown)
-      }
       if ((m = /^\/drive\/v3\/files\/([^/]+)$/.exec(u.pathname))) {
         const d = docs.get(m[1])
         return d ? json(200, { id: m[1], name: d.name, modifiedTime: d.modifiedTime }) : json(404, { error: { code: 404, message: 'not found' } })

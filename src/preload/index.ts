@@ -37,6 +37,7 @@ const api = {
   },
   gdocs: {
     meta: invoke('gdocs:meta'),
+    revision: invoke('gdocs:revision'),
     tabs: invoke('gdocs:tabs'),
     comments: invoke('gdocs:comments'),
     list: invoke('gdocs:list'),

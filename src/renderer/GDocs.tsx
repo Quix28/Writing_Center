@@ -5,9 +5,10 @@ import { MergeView } from '@codemirror/merge'
 import { markdown } from '@codemirror/lang-markdown'
 import { api, errorText, type DocMeta, type TabInfo } from './api'
 import { toast } from './ui'
-import { currentPath, getView, replaceDoc } from './Editor'
+import { currentPath, getView, replaceDoc, typingListeners } from './Editor'
 import { inReview, isWriting } from './cm/suggest'
 import { bodyHash, getKey, setKeys, splitFrontmatter } from '../shared/frontmatter'
+import { mergeRemote, sameContent } from '../shared/mdParas'
 
 type Choice = 'local' | 'remote' | null
 type Conflict = { local: string; remote: string; reason: string; resolve: (c: Choice) => void }
@@ -47,37 +48,37 @@ async function localChanged(md: string) {
 }
 
 /**
- * Whole document: Google's modifiedTime against the one recorded at the last sync. One tab: that time also moves
- * when any other tab is edited, so the tab's own content is compared with what it was at the last sync.
+ * The Doc's (or tab's) content against how it read at the last sync; Google's modifiedTime can't tell, as it also
+ * moves when another tab is edited. Notes synced before the content hash existed fall back to that time.
  */
 async function remoteChanged(md: string, link: Link, remote: Remote) {
-  if (link.tab) {
-    const h = getKey(md, 'gdoc_remote_hash')
-    return !h || h !== (await bodyHash(remote.markdown))
-  }
+  const h = getKey(md, 'gdoc_remote_hash')
+  if (h) return h !== (await bodyHash(remote.markdown))
   const synced = getKey(md, 'gdoc_synced_at')
-  return !synced || Date.parse(remote.modifiedTime) > Date.parse(synced)
+  return !!link.tab || !synced || Date.parse(remote.modifiedTime) > Date.parse(synced)
 }
 
-async function syncKeys(link: Link, syncedBody: string, remote: Remote) {
+/** `stale`: the Doc had more in it than this sync accounts for, so the next sync must treat it as changed. */
+async function syncKeys(_link: Link, syncedBody: string, remote: Remote, stale = false) {
   return {
     gdoc_synced_at: remote.modifiedTime,
     gdoc_hash: await bodyHash(syncedBody),
-    ...(link.tab ? { gdoc_remote_hash: await bodyHash(remote.markdown) } : {})
+    gdoc_remote_hash: stale ? 'stale' : await bodyHash(remote.markdown)
   }
 }
 
-async function record(path: string, link: Link, syncedBody: string, remote: Remote) {
-  replaceDoc(path, setKeys(latest(), await syncKeys(link, syncedBody, remote)))
+async function record(path: string, link: Link, syncedBody: string, remote: Remote, stale = false) {
+  replaceDoc(path, setKeys(latest(), await syncKeys(link, syncedBody, remote, stale)))
 }
 
-async function doPush(path: string, link: Link) {
+async function doPush(path: string, link: Link, quiet = false) {
   const { body } = noteFor(path)
-  const { modifiedTime } = await api.gdocs.push(link.id, body, link.tab)
-  // For a tab, remember how Google now holds it, so the next sync can tell whether someone edited it.
-  const remote = link.tab ? await api.gdocs.pull(link.id, link.tab) : { markdown: '', modifiedTime }
-  await record(path, link, body, remote)
-  toast('Pushed to Google Docs.', 'ok')
+  await api.gdocs.push(link.id, body, link.tab)
+  // Remember how Google now holds it, so the next sync can tell whether someone edited it. If someone typed in the
+  // Doc right after the push, that text isn't in the note: mark it stale so it is pulled in, never pushed over.
+  const remote = await api.gdocs.pull(link.id, link.tab)
+  await record(path, link, body, remote, !sameContent(remote.markdown, body))
+  if (!quiet) toast('Pushed to Google Docs.', 'ok')
 }
 
 async function doPull(path: string, link: Link, remote: Remote) {
@@ -91,6 +92,7 @@ async function resolve(path: string, link: Link, remote: Remote, reason: string)
   const choice = await askConflict({ local: noteFor(path).body, remote: remote.markdown, reason })
   if (choice === 'local') await doPush(path, link)
   if (choice === 'remote') await doPull(path, link, remote)
+  return choice
 }
 
 async function run(fn: () => Promise<void>) {
@@ -110,9 +112,8 @@ export const gdocs = {
     run(async () => {
       const { md, body, link } = noteFor(path)
       if (!link) return toast('Link this note to a Google Doc first.')
-      if (!link.tab && !(await remoteChanged(md, link, { markdown: '', modifiedTime: (await api.gdocs.meta(link.id)).modifiedTime }))) return doPush(path, link)
       const remote = await api.gdocs.pull(link.id, link.tab)
-      if (link.tab && !(await remoteChanged(md, link, remote))) return doPush(path, link)
+      if (!(await remoteChanged(md, link, remote))) return doPush(path, link)
       if (same(remote.markdown, body)) return record(path, link, body, remote)
       const reason = (await localChanged(md))
         ? 'Both this note and the Google Doc changed since the last sync.'
@@ -162,7 +163,97 @@ export const gdocs = {
       await resolve(path, link, remote, `First sync with “${doc.name}${tab ? ` › ${tab.title}` : ''}”: choose which version to keep.`)
     }),
 
-  signOut: () => api.gdocs.signOut().then(() => toast('Signed out of Google.', 'ok'))
+  signOut: () => api.gdocs.signOut().then(() => toast('Signed out of Google.', 'ok')),
+
+  toggleLive: () => {
+    setLive(!live.on)
+    toast(live.on ? 'Live sync on: linked notes and their Google Docs follow each other every few seconds.' : 'Live sync off.', 'ok')
+  }
+}
+
+const LIVE_KEY = 'wc.gdocsLive'
+const POLL_MS = 2000
+/** Local edits go out once typing pauses this long, so the Doc isn't rewritten mid-word. */
+const IDLE_MS = 1500
+const readLive = () => {
+  try {
+    return localStorage.getItem(LIVE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+export const live = { on: readLive(), listeners: new Set<(on: boolean) => void>() }
+function setLive(on: boolean) {
+  live.on = on
+  try {
+    localStorage.setItem(LIVE_KEY, on ? '1' : '')
+  } catch {
+    /* the setting just won't be remembered */
+  }
+  live.listeners.forEach((f) => f(on))
+}
+let lastTyped = 0
+typingListeners.add(() => (lastTyped = Date.now()))
+const seenRevision = new Map<string, string>()
+let lastLiveError = ''
+
+/**
+ * One live-sync step for the open note: the Doc's revision ID is polled; when it moved, the Doc is read and its edits
+ * are merged into an unchanged note; local edits are pushed once typing pauses. If both sides changed, the
+ * side-by-side dialog decides, exactly like a manual sync. Nothing is ever overwritten silently.
+ */
+async function liveTick() {
+  const path = currentPath()
+  if (!live.on || syncing || !path?.endsWith('.md')) return
+  let note: ReturnType<typeof noteFor>
+  try {
+    note = noteFor(path)
+  } catch {
+    return
+  }
+  const { md, body, link } = note
+  if (!link) return
+  const local = await localChanged(md)
+  if (local && Date.now() - lastTyped < IDLE_MS) return
+  syncing = true
+  try {
+    const revision = await api.gdocs.revision(link.id)
+    if (!local && revision === seenRevision.get(path)) return
+    const remote = await api.gdocs.pull(link.id, link.tab)
+    // Typed while the Doc was being read: start over on the next tick with the new text.
+    if (currentPath() !== path || latest() !== md) return
+    const theirs = await remoteChanged(md, link, remote)
+    if (!theirs && !local) seenRevision.set(path, revision)
+    else if (!theirs) await doPush(path, link, true)
+    else if (!local || sameContent(body, remote.markdown)) {
+      const merged = local ? body : mergeRemote(body, remote.markdown)
+      replaceDoc(path, setKeys(md.slice(0, md.length - body.length) + merged, await syncKeys(link, merged, remote)))
+      seenRevision.set(path, revision)
+    } else if (!(await resolve(path, link, remote, 'Live sync: this note and the Google Doc were both edited at the same time.'))) {
+      setLive(false)
+      toast('Live sync is paused. Turn it back on from ⌘P when you are ready.')
+    }
+    lastLiveError = ''
+  } catch (e) {
+    const message = errorText(e)
+    if (message !== lastLiveError) toast(`Live sync: ${message}`)
+    lastLiveError = message
+  } finally {
+    syncing = false
+  }
+}
+
+export function LiveBadge({ onClick }: { onClick: () => void }) {
+  const [on, setOn] = useState(live.on)
+  useEffect(() => {
+    live.listeners.add(setOn)
+    return () => void live.listeners.delete(setOn)
+  }, [])
+  return on ? (
+    <button className="status-item" onClick={onClick} title="Google Docs live sync is on. Click to turn it off.">
+      <span className="dot ok" /> Live sync
+    </button>
+  ) : null
 }
 
 function ConflictDialog({ c, done }: { c: Conflict; done: (choice: Choice) => void }) {
@@ -247,6 +338,10 @@ export function GDocsDialogs() {
   showConflict = setConflict
   showPicker = setPicker
   showTabPicker = setTabPicker
+  useEffect(() => {
+    const timer = setInterval(liveTick, POLL_MS)
+    return () => clearInterval(timer)
+  }, [])
   return (
     <>
       {conflict && <ConflictDialog c={conflict} done={(choice) => (setConflict(null), conflict.resolve(choice))} />}

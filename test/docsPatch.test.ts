@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mdToDocs, parseParas, patchDoc } from '../src/main/mdToDocs.ts'
+import { mdToDocs, patchDoc } from '../src/main/mdToDocs.ts'
+import { mergeRemote, sameContent } from '../src/shared/mdParas.ts'
 import { tabToMarkdown } from '../src/main/docsToMd.ts'
 // @ts-expect-error plain JS test helper
 import { apply, makeDoc, toTab } from './docsSim.mjs'
@@ -109,8 +110,13 @@ test('random edits always round-trip and never break a request', () => {
         return blocks.join('\n\n') + '\n'
       })
       // Same paragraphs, styles, lists and marks; blank lines may differ (e.g. between paragraphs that became list items).
-      const content = (m: string) => parseParas(m).map(({ text, style, list, depth, runs }) => ({ text, style, list, depth, runs }))
-      assert.deepEqual(content(after), content(md), `round ${round} step ${step}`)
+      assert(sameContent(after, md), `round ${round} step ${step}`)
     }
   }
+})
+
+test('a Doc edit merges into the note, keeping the note syntax where the Doc is unchanged', () => {
+  const note = '# Title\n\nSee [[Second|the second note]] and __bold__.\n\n* one\n* two\n\nOld closing.\n'
+  const doc = '# Title\n\nSee the second note and **bold**.\n\n- one\n- two\n\nNew closing from Docs.\n'
+  assert.equal(mergeRemote(note, doc), '# Title\n\nSee [[Second|the second note]] and __bold__.\n\n* one\n* two\n\nNew closing from Docs.\n')
 })

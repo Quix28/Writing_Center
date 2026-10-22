@@ -57,7 +57,7 @@ await check('link to a new doc: creates it, pushes headings/bold/italic/links, s
 await check('push with only local changes goes straight through, sending only the change', async () => {
   await typeAtEnd('\nLocal edit one.')
   await command('push note')
-  await okToast('Pushed')
+  for (let i = 0; i < 50 && !g.docs.get(id).markdown.includes('Local edit one.'); i++) await sleep(200)
   assert(g.docs.get(id).markdown.includes('Local edit one.'))
   const reqs = g.docs.get(id).lastRequests
   assert(!reqs.some((r) => r.deleteContentRange), 'nothing already in the Doc is deleted')
@@ -139,7 +139,7 @@ await check('network failure during push: toast, note and sync metadata untouche
 
 await check('API error during pull: toast, note untouched', async () => {
   const before = disk('Welcome.md')
-  g.failOn(/\/export$/)
+  g.failOn(/GET \/v1\/documents\/[^/:]+$/)
   await command('pull doc')
   await page.locator('.toast.error', { hasText: /Google API error 500/ }).last().waitFor({ timeout: 30000 })
   g.failOn(null)

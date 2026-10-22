@@ -149,6 +149,7 @@ Test-only variables (leave them unset in normal use): `WC_HEADLESS`, `WC_VAULT`,
   - For a Doc with **document tabs**, linking asks which tab the note should mirror. Push and pull then touch only that tab; the other tabs stay as they are.
   - An edit in another tab doesn't count as a conflict.
   - A Doc with several tabs can't be linked as a whole document, because Google's API would only write its first tab.
+  - **Live sync** (⌘P → *Google Docs: Turn live sync on*): while a linked note is open, the app checks the Doc every 2 seconds. Edits made in Google Docs flow into the note, and paragraphs the Doc didn't change keep the note's own markdown, including wikilinks. Your typing goes to the Doc 1.5 seconds after you pause. If both sides change at the same moment, the side-by-side dialog asks which to keep; Cancel pauses live sync. A **Live sync** badge in the status bar shows it is on; click it to turn it off.
   - **Push changes only what you changed.** Paragraphs you didn't touch keep all their Google Docs formatting (font, size, colour, spacing, indents, alignment, blank lines, images). In an edited paragraph only the changed words are replaced, and new words take the formatting of the text next to them. The push applies only to the Doc revision it was based on; if someone edits the Doc mid-push, nothing changes and you're asked to push again.
 - **Google Docs comments:** the **Comments** tab shows the linked Doc's comments.
   - Each comment shows its author, date, the quoted text and replies. Resolved comments are hidden behind a checkbox.
@@ -178,6 +179,7 @@ Test-only variables (leave them unset in normal use): `WC_HEADLESS`, `WC_VAULT`,
 | Find inspiration sends the web search tool, and items whose URL is not in the search results are dropped | e2e phase 4 + `test/inspiration.test.ts` |
 | Google sync: link new or existing; push and pull; diff instead of overwrite whenever the other side changed; Cancel changes nothing; network/API errors leave both sides untouched | `test/e2e-phase5.mjs` (mock Google) |
 | Markdown → Docs request generation (headings, bold, italic, links, nested lists, index maths) | `test/gdocs.test.ts` |
+| Live sync: Doc edits reach the note (unchanged paragraphs keep their wikilinks), typing reaches the Doc after a pause, simultaneous edits open the dialog and Cancel pauses sync without overwriting either side; Doc → note merge keeps the note's syntax | `test/e2e-phase15-live.mjs` (mock Google) + `test/docsPatch.test.ts` |
 | Push edits only changed paragraphs: an unchanged note sends nothing; fonts, paragraph styles, first-line tabs, blank lines and inline images outside the edit survive; adds, deletes (including the last paragraph), heading and list changes, and 200 random documents with 6 edits each round-trip with every request valid | `test/docsPatch.test.ts` (Docs simulator `test/docsSim.mjs`) |
 | Google Docs comments: listed with replies, highlighted on their passage, other-tab and resolved comments filtered, never written into the note; placement ignores markdown, case and line wrapping | `test/e2e-phase14-gdocs-tabs.mjs` + `test/comments.test.ts` |
 | Google Docs tabs: tab picker, pull/push of one tab only (every request carries its `tabId`), no false conflicts from other tabs, whole-document links refused on tabbed Docs; tab → markdown conversion (headings, emphasis, links, nested and numbered lists, tables) | `test/e2e-phase14-gdocs-tabs.mjs` (mock Google) + `test/docsToMd.test.ts` |
@@ -202,8 +204,7 @@ Test-only variables (leave them unset in normal use): `WC_HEADLESS`, `WC_VAULT`,
 - **Real Claude sign-in and API calls.** Neither a real `ant auth login` nor a real API key was used while building, so every Claude feature was checked only against `test/mock-claude.mjs`. Untested for real: model listing, structured JSON output, streaming, `web_search_20260209`, and whether the API accepts `fallbacks: "default"`.
 - **Real Google APIs:**
   - The OAuth loopback sign-in in a real browser, and storing and refreshing the token through `safeStorage`.
-  - Real Docs `batchUpdate` and Drive export calls. The request shapes follow Google's documentation and pass the mock, but Google never saw them.
-  - What Google's Markdown export actually produces.
+  - Real Docs `batchUpdate`, revision polling and tab reads. The request shapes follow Google's documentation and pass the mock, but Google never saw them.
 - Obsidian opening a `.canvas` made here. The format follows the JSON Canvas spec, but no file was opened in Obsidian.
 - Drag and drop and edge drawing with a real mouse. The tests use Playwright's synthetic events.
 - How smooth the Clawd animations look, beyond static screenshots.
@@ -225,8 +226,9 @@ Test-only variables (leave them unset in normal use): `WC_HEADLESS`, `WC_VAULT`,
   - Images become their alt text. Horizontal rules are dropped.
 - A list that mixes bullet and number styles takes the style of its top level.
 - YAML frontmatter is never pushed; it stays in the local file.
-- **Pull** uses Google's own Markdown export, so the note comes back in Google's markdown style. Expect different escaping, list markers, and emphasis characters. Wikilinks, frontmatter-only data, and anything listed above that was flattened don't come back.
-  - In practice, a push followed by a pull rewrites the note's syntax even when nobody edited the Doc. ⌘Z undoes a pull.
+- **Pull** converts the Doc's content to markdown (`-` bullets, `**bold**`, `*italic*`). A manual pull replaces the whole note, so wikilinks and anything listed above that was flattened don't come back; ⌘Z undoes a pull. Live sync only replaces the paragraphs the Doc changed.
+- Images, drawings, smart chips and footnotes aren't pulled into the note; they stay in the Doc.
+- **Live sync isn't keystroke-by-keystroke.** Google's API has no live feed of edits, so the app polls: changes show up on the other side within about 2–4 seconds. Polling uses about 30 small Docs API reads a minute while a linked note is open, well under Google's per-user limit.
 - Comments anchored to words you replaced may be orphaned in the Doc; comments elsewhere are untouched.
 - **Change detection:**
   - Remote changes are detected with the Doc's Drive `modifiedTime`. Anything that bumps it counts as a change, which can produce an unnecessary (but safe) conflict dialog.

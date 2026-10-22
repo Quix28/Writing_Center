@@ -36,6 +36,7 @@ type Api = {
   }
   gdocs: {
     meta(id: string): Promise<DocMeta>
+    revision(id: string): Promise<string>
     tabs(id: string): Promise<TabInfo[]>
     comments(id: string): Promise<DocComment[]>
     list(query: string): Promise<DocMeta[]>
