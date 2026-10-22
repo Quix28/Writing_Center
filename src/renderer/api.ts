@@ -49,7 +49,7 @@ type Api = {
     connect(): Promise<GoogleStatus>
   }
   term: {
-    start(size: { cols: number; rows: number }): Promise<string>
+    start(size: { cols: number; rows: number }, mode?: 'new' | 'continue' | 'resume'): Promise<string>
     write(id: string, data: string): Promise<void>
     resize(id: string, cols: number, rows: number): Promise<void>
     kill(id: string): Promise<void>

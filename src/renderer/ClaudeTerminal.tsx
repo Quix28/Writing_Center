@@ -24,14 +24,14 @@ export function ClaudeTerminal({ visible, activePath }: { visible: boolean; acti
   const [state, setState] = useState<'starting' | 'running' | 'exited'>('starting')
   const [error, setError] = useState<string | null>(null)
 
-  const start = async () => {
+  const start = async (mode: 'new' | 'continue' | 'resume' = 'new') => {
     const t = term.current!
     setError(null)
     setState('starting')
     t.reset()
     try {
       fit.current?.fit()
-      session.current = await api.term.start({ cols: t.cols, rows: t.rows })
+      session.current = await api.term.start({ cols: t.cols, rows: t.rows }, mode)
       setState('running')
     } catch (e) {
       setError(errorText(e))
@@ -52,7 +52,7 @@ export function ClaudeTerminal({ visible, activePath }: { visible: boolean; acti
       if (id !== session.current) return
       session.current = null
       setState('exited')
-      t.write(`\r\n\x1b[2m[Claude Code exited${exitCode ? ` with code ${exitCode}` : ''}. Press Restart to start again.]\x1b[0m\r\n`)
+      t.write(`\r\n\x1b[2m[Claude Code exited${exitCode ? ` with code ${exitCode}` : ''}. Press Continue last chat or New chat.]\x1b[0m\r\n`)
     })
     const ro = new ResizeObserver(() => {
       if (!host.current?.offsetWidth) return
@@ -98,6 +98,12 @@ export function ClaudeTerminal({ visible, activePath }: { visible: boolean; acti
     t.focus()
   }
 
+  const restart = (mode: 'new' | 'continue' | 'resume') => {
+    if (session.current) api.term.kill(session.current)
+    session.current = null
+    start(mode)
+  }
+
   const askAboutNote = () => {
     if (!activePath) return
     const path = oneLine(activePath)
@@ -117,7 +123,9 @@ export function ClaudeTerminal({ visible, activePath }: { visible: boolean; acti
         <button onClick={askAboutNote} disabled={!activePath || state !== 'running'} title="Mention the open note in your message">Ask about this note</button>
         <button onClick={sendSelection} disabled={state !== 'running'} title="Paste the text selected in the editor into your message">Send selection</button>
         <span className="status-spacer" />
-        <button className="quiet" onClick={() => (session.current && api.term.kill(session.current), (session.current = null), start())} title="Start a fresh Claude Code session">Restart</button>
+        <button className="quiet" onClick={() => restart('continue')} title="Reopen the most recent Claude Code chat in this vault (claude --continue)">Continue last chat</button>
+        <button className="quiet" onClick={() => restart('resume')} title="Choose any earlier Claude Code chat in this vault (claude --resume)">Past chats…</button>
+        <button className="quiet" onClick={() => restart('new')} title="Start a fresh Claude Code session">New chat</button>
       </div>
       {error && <p className="error-text term-error">{error}</p>}
       {notice && <p className="muted small term-error" role="status">{notice}</p>}

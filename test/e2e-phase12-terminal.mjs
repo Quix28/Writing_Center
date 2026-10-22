@@ -15,7 +15,7 @@ writeFileSync(tmp('vault') + 'Essay.md', `# Essay\n\n${PARA}\n`)
 mkdirSync(tmp('bin'))
 // Stand-in for interactive `claude`: says hello, echoes each line it receives, shows the folder it runs in.
 // Like Claude Code, it turns bracketed paste on at its prompt; "menu" turns it off, as a permission prompt would.
-writeFileSync(tmp('bin') + 'claude', '#!/bin/sh\nprintf "\\033[?2004h"\necho "FAKE CLAUDE in $(pwd)"\nwhile IFS= read -r line; do echo "got: $line"; case "$line" in *menu*) printf "\\033[?2004l";; *done*) printf "\\033[?2004h";; esac; done\n')
+writeFileSync(tmp('bin') + 'claude', '#!/bin/sh\nprintf "\\033[?2004h"\necho "FAKE CLAUDE in $(pwd) args:[$*]"\nwhile IFS= read -r line; do echo "got: $line"; case "$line" in *menu*) printf "\\033[?2004l";; *done*) printf "\\033[?2004h";; esac; done\n')
 chmod(tmp('bin') + 'claude')
 function chmod(p) { chmodSync(p, 0o755) }
 const check = async (name, fn) => { await fn(); console.log('✔', name) }
@@ -53,6 +53,16 @@ await check('Claude Code tab runs claude in the vault folder, in a real terminal
   const clawd = await page.locator('.clawd-body').boundingBox()
   const center = await page.locator('.pane-body', { has: page.locator('.cm-editor') }).boundingBox()
   assert(clawd.x + clawd.width <= center.x + center.width + 1, 'Clawd stays inside the editor area after the panel widens')
+})
+
+await check('Continue last chat and Past chats restart claude with --continue / --resume', async () => {
+  assert((await screen()).includes('args:[]'), 'a new chat has no flags')
+  await page.locator('.term-bar button', { hasText: 'Continue last chat' }).click()
+  await page.waitForFunction(() => document.querySelector('.claude-term .xterm-rows')?.innerText.includes('args:[--continue]'))
+  await page.locator('.term-bar button', { hasText: 'Past chats' }).click()
+  await page.waitForFunction(() => document.querySelector('.claude-term .xterm-rows')?.innerText.includes('args:[--resume]'))
+  await page.locator('.term-bar button', { hasText: 'New chat' }).click()
+  await page.waitForFunction(() => document.querySelector('.claude-term .xterm-rows')?.innerText.includes('args:[]'))
 })
 
 await check('typing goes to Claude; "Ask about this note" mentions the open note', async () => {

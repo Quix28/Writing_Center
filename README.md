@@ -130,7 +130,7 @@ Test-only variables (leave them unset in normal use): `WC_HEADLESS`, `WC_VAULT`,
   - Anything else, including programs and scripts such as `.app` or `.command`, only gets **Show in Finder**, so a file in a shared vault can't run code from inside the app.
 - **Claude Code:** the **Claude Code** tab runs your real, interactive `claude` inside the app, in the vault folder, in a proper terminal.
   - It's exactly your terminal Claude Code: your settings, CLAUDE.md, skills, plugins, permission mode and prompts, using your Claude plan.
-  - **Ask about this note** mentions the open note (`@note.md`). **Send selection** pastes the editor selection as one block. **Restart** starts a fresh session.
+  - **Ask about this note** mentions the open note (`@note.md`). **Send selection** pastes the editor selection as one block. **Continue last chat** reopens your most recent Claude Code chat in this vault (`claude --continue`), **Past chats…** lets you pick any earlier one (`claude --resume`), and **New chat** starts fresh. Inside a session, `/resume` works too. Only chats started in the vault folder are listed, because Claude Code keeps chats per folder.
   - When Claude edits a note, the editor updates right away. The session keeps running while you switch tabs or notes.
   - Drag it anywhere, e.g. under the note you're working on, and resize it with the lines between panes.
   - The app starts it through your login shell, so `claude` must work in Terminal.app.
