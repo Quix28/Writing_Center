@@ -149,6 +149,7 @@ Test-only variables (leave them unset in normal use): `WC_HEADLESS`, `WC_VAULT`,
   - For a Doc with **document tabs**, linking asks which tab the note should mirror. Push and pull then touch only that tab; the other tabs stay as they are.
   - An edit in another tab doesn't count as a conflict.
   - A Doc with several tabs can't be linked as a whole document, because Google's API would only write its first tab.
+  - **Push changes only what you changed.** Paragraphs you didn't touch keep all their Google Docs formatting (font, size, colour, spacing, indents, alignment, blank lines, images). In an edited paragraph only the changed words are replaced, and new words take the formatting of the text next to them. The push applies only to the Doc revision it was based on; if someone edits the Doc mid-push, nothing changes and you're asked to push again.
 - **Google Docs comments:** the **Comments** tab shows the linked Doc's comments.
   - Each comment shows its author, date, the quoted text and replies. Resolved comments are hidden behind a checkbox.
   - The quoted passages are highlighted in the note, with the comment on hover; click a comment to jump to it.
@@ -177,6 +178,7 @@ Test-only variables (leave them unset in normal use): `WC_HEADLESS`, `WC_VAULT`,
 | Find inspiration sends the web search tool, and items whose URL is not in the search results are dropped | e2e phase 4 + `test/inspiration.test.ts` |
 | Google sync: link new or existing; push and pull; diff instead of overwrite whenever the other side changed; Cancel changes nothing; network/API errors leave both sides untouched | `test/e2e-phase5.mjs` (mock Google) |
 | Markdown → Docs request generation (headings, bold, italic, links, nested lists, index maths) | `test/gdocs.test.ts` |
+| Push edits only changed paragraphs: an unchanged note sends nothing; fonts, paragraph styles, first-line tabs, blank lines and inline images outside the edit survive; adds, deletes (including the last paragraph), heading and list changes, and 200 random documents with 6 edits each round-trip with every request valid | `test/docsPatch.test.ts` (Docs simulator `test/docsSim.mjs`) |
 | Google Docs comments: listed with replies, highlighted on their passage, other-tab and resolved comments filtered, never written into the note; placement ignores markdown, case and line wrapping | `test/e2e-phase14-gdocs-tabs.mjs` + `test/comments.test.ts` |
 | Google Docs tabs: tab picker, pull/push of one tab only (every request carries its `tabId`), no false conflicts from other tabs, whole-document links refused on tabbed Docs; tab → markdown conversion (headings, emphasis, links, nested and numbered lists, tables) | `test/e2e-phase14-gdocs-tabs.mjs` (mock Google) + `test/docsToMd.test.ts` |
 | `npm run dev` renderer loads with no console errors | manual headless check |
@@ -211,18 +213,21 @@ Test-only variables (leave them unset in normal use): `WC_HEADLESS`, `WC_VAULT`,
 
 ### Google Docs round-trip losses
 
-- **Pushed with formatting:** headings, bold, italic, links, bulleted and numbered lists (including nesting), and line breaks.
+- **Pushed with formatting:** headings, bold, italic, strikethrough, links, bulleted and numbered lists (including nesting), and line breaks. Other formatting already in the Doc is kept wherever you didn't edit.
 - **Pushed as plain text:**
   - `[[wikilinks]]` become their alias or target name, so the link itself is lost.
   - Inline code and code blocks lose monospace.
-  - Blockquotes, tables, and raw HTML.
-  - `~~strikethrough~~` and task-list `[ ]` boxes stay as literal characters.
+  - Blockquotes and raw HTML.
+  - Task-list `[ ]` boxes stay as literal characters.
+- **Tables are never pushed.** They stay as they are in the Doc; edit them in Google Docs.
+- Text you add to a paragraph takes on the formatting of the words beside it (e.g. underline or colour), because markdown can't say otherwise.
+- New list items start their own list in the Doc, so numbering restarts after an existing numbered list.
   - Images become their alt text. Horizontal rules are dropped.
 - A list that mixes bullet and number styles takes the style of its top level.
 - YAML frontmatter is never pushed; it stays in the local file.
 - **Pull** uses Google's own Markdown export, so the note comes back in Google's markdown style. Expect different escaping, list markers, and emphasis characters. Wikilinks, frontmatter-only data, and anything listed above that was flattened don't come back.
   - In practice, a push followed by a pull rewrites the note's syntax even when nobody edited the Doc. ⌘Z undoes a pull.
-- Push replaces the whole Doc body. Comments anchored to replaced text in the Doc may be lost or orphaned.
+- Comments anchored to words you replaced may be orphaned in the Doc; comments elsewhere are untouched.
 - **Change detection:**
   - Remote changes are detected with the Doc's Drive `modifiedTime`. Anything that bumps it counts as a change, which can produce an unnecessary (but safe) conflict dialog.
   - Local changes are detected with a content hash rather than file modified time, because writing the sync metadata itself changes the file's mtime.

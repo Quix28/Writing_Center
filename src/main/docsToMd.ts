@@ -39,6 +39,12 @@ function inline(elements: docs_v1.Schema$ParagraphElement[] = []): string {
     .join('')
 }
 
+/** Numbered (any glyph type) vs bulleted (glyph symbol) at the paragraph's nesting level. */
+export function isOrdered(lists: Record<string, docs_v1.Schema$List>, bullet: docs_v1.Schema$Bullet): boolean {
+  const glyph = lists[bullet.listId ?? '']?.listProperties?.nestingLevels?.[bullet.nestingLevel ?? 0]?.glyphType
+  return !!glyph && glyph !== 'GLYPH_TYPE_UNSPECIFIED' && glyph !== 'NONE'
+}
+
 const plain = (cell: docs_v1.Schema$TableCell) =>
   (cell.content ?? []).map((c) => inline(c.paragraph?.elements).trim()).filter(Boolean).join(' ').replace(/\|/g, '\\|')
 
@@ -60,9 +66,7 @@ export function tabToMarkdown(tab: docs_v1.Schema$DocumentTab | undefined): stri
       const text = inline(p.elements).trimEnd()
       if (p.bullet) {
         const level = p.bullet.nestingLevel ?? 0
-        const glyph = lists[p.bullet.listId ?? '']?.listProperties?.nestingLevels?.[level]?.glyphType
-        const ordered = !!glyph && glyph !== 'GLYPH_TYPE_UNSPECIFIED' && glyph !== 'NONE'
-        ;(listBlock ??= []).push(`${'  '.repeat(level)}${ordered ? '1.' : '-'} ${text.trim()}`)
+        ;(listBlock ??= []).push(`${'  '.repeat(level)}${isOrdered(lists, p.bullet) ? '1.' : '-'} ${text.trim()}`)
         continue
       }
       endList()

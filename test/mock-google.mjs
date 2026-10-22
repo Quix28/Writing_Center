@@ -1,13 +1,14 @@
-// Minimal stand-in for the Docs v1 + Drive v3 endpoints Writing Centre uses. Docs are stored as plain markdown.
+// Minimal stand-in for the Docs v1 + Drive v3 endpoints Writing Centre uses. Whole docs are stored as markdown,
+// tabs as paragraphs; batchUpdate runs through the Docs simulator, so invalid requests fail like the real API.
 import { createServer } from 'node:http'
+import { apply, makeDoc, toParas, toTab } from './docsSim.mjs'
+import { mdToDocs } from '../src/main/mdToDocs.ts'
+import { tabToMarkdown } from '../src/main/docsToMd.ts'
 
-/** Tabs are stored as { id, title, paras: [{ text, style }], children } and served in the Docs API shape. */
+/** Tabs are stored as { id, title, paras: [{ text, style, bullet? }], children } and served in the Docs API shape. */
 const allTabs = (tabs = []) => tabs.flatMap((t) => [t, ...allTabs(t.children)])
-function tabJson(t, index) {
-  let at = 1
-  const content = [{ sectionBreak: {}, endIndex: 1 }, ...t.paras.map((p) => ({ startIndex: at, endIndex: (at += p.text.length + 1), paragraph: { elements: [{ textRun: { content: p.text + '\n', textStyle: {} } }], paragraphStyle: { namedStyleType: p.style } } }))]
-  return { tabProperties: { tabId: t.id, title: t.title, index }, documentTab: { body: { content }, lists: {} }, childTabs: (t.children ?? []).map(tabJson) }
-}
+const tabJson = (t, index) => ({ tabProperties: { tabId: t.id, title: t.title, index }, documentTab: toTab(makeDoc(t.paras)), childTabs: (t.children ?? []).map(tabJson) })
+const wholeDoc = (d) => apply(makeDoc(), mdToDocs(d.markdown))
 
 export function startGoogleMock() {
   const docs = new Map()
@@ -30,24 +31,25 @@ export function startGoogleMock() {
         docs.set(id, { name: body.title, markdown: '', modifiedTime: tick() })
         return json(200, { documentId: id, title: body.title })
       }
-      if ((m = /^\/v1\/documents\/([^/:]+)$/.exec(u.pathname)) && docs.get(m[1])?.tabs && u.searchParams.get('includeTabsContent') === 'true') {
-        return json(200, { tabs: docs.get(m[1]).tabs.map(tabJson) })
-      }
       if ((m = /^\/v1\/documents\/([^/:]+)$/.exec(u.pathname))) {
         const d = docs.get(m[1])
-        return d ? json(200, { body: { content: [{ endIndex: 1 }, { endIndex: d.markdown.length + 2 }] } }) : json(404, { error: { code: 404, message: 'not found' } })
+        if (!d) return json(404, { error: { code: 404, message: 'not found' } })
+        const tabs = d.tabs ? d.tabs.map(tabJson) : [{ tabProperties: { tabId: 't.0', title: 'Tab 1', index: 0 }, documentTab: toTab(wholeDoc(d)) }]
+        return json(200, { documentId: m[1], revisionId: d.modifiedTime, tabs })
       }
       if ((m = /^\/v1\/documents\/([^/:]+):batchUpdate$/.exec(u.pathname))) {
         const d = docs.get(m[1])
-        const insert = body.requests.find((r) => r.insertText)
-        const tabId = insert?.insertText.location.tabId ?? body.requests[0]?.deleteContentRange?.range.tabId
-        if (tabId) {
-          const tab = allTabs(d.tabs).find((t) => t.id === tabId)
-          tab.paras = (insert ? insert.insertText.text : '').split('\n').map((text) => ({ text, style: 'NORMAL_TEXT' }))
-          let at = 1
-          const starts = tab.paras.map((p) => { const s = at; at += p.text.length + 1; return s })
-          for (const r of body.requests) if (r.updateParagraphStyle) { const i = starts.indexOf(r.updateParagraphStyle.range.startIndex); if (i >= 0) tab.paras[i].style = r.updateParagraphStyle.paragraphStyle.namedStyleType }
-        } else d.markdown = insert ? insert.insertText.text : ''
+        const required = body.writeControl?.requiredRevisionId
+        if (required && required !== d.modifiedTime) return json(400, { error: { code: 400, message: 'The required revision ID does not match the latest revision.' } })
+        const tabId = body.requests.map((r) => Object.values(r)[0]).map((b) => (b.location ?? b.range)?.tabId).find(Boolean)
+        try {
+          if (tabId) {
+            const tab = allTabs(d.tabs).find((t) => t.id === tabId)
+            tab.paras = toParas(apply(makeDoc(tab.paras), body.requests))
+          } else d.markdown = tabToMarkdown(toTab(apply(wholeDoc(d), body.requests)))
+        } catch (e) {
+          return json(400, { error: { code: 400, message: String(e.message) } })
+        }
         d.modifiedTime = tick()
         d.lastRequests = body.requests
         return json(200, { documentId: m[1], replies: [] })

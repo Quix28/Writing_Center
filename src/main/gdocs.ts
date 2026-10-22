@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { CodeChallengeMethod, OAuth2Client, type Credentials } from 'google-auth-library'
 import { docs } from '@googleapis/docs'
 import { drive } from '@googleapis/drive'
-import { mdToDocs } from './mdToDocs'
+import { patchDoc } from './mdToDocs'
 import { findTab, flattenTabs, tabToMarkdown, type TabInfo } from './docsToMd'
 import { checkSecret, KEYCHAIN_DENIED, loadSecrets } from './secrets'
 import { loadSettings, saveSettings } from './settings'
@@ -123,6 +123,7 @@ function friendly(e: unknown): Error {
     signOut()
     return new Error('Google access expired or was revoked. Run the command again to sign in.')
   }
+  if (status === 400 && /revision/i.test(detail ?? '')) return new Error('The Google Doc changed while pushing, so nothing was changed. Push again.')
   if (status === 404) return new Error('That Google Doc no longer exists or you lost access to it.')
   if (status === 401 || status === 403) return new Error(`Google refused access (${status}): ${detail ?? err.message}`)
   if (status) return new Error(`Google API error ${status}: ${detail ?? err.message}`)
@@ -236,15 +237,19 @@ export const pull = guarded(async (id: string, tabId?: string): Promise<{ markdo
   return { markdown: String(res.data), modifiedTime }
 })
 
-/** Markdown → Doc: one atomic batchUpdate that clears the body and rebuilds it, so a failure leaves the Doc as it was. */
+/**
+ * Markdown → Doc: one atomic batchUpdate that changes only the paragraphs that differ, so the Doc keeps its own
+ * formatting. It only applies to the revision it was computed from; an edit landing in between fails it untouched.
+ */
 export const push = guarded(async (id: string, markdown: string, tabId?: string): Promise<{ modifiedTime: string }> => {
   const { docsApi } = await apis()
   if (!tabId) await refuseIfTabbed(id)
-  const body = tabId ? (await getTab(id, tabId)).body : (await docsApi.documents.get({ documentId: id, fields: 'body(content(endIndex))' })).data.body
-  const endIndex = body?.content?.at(-1)?.endIndex ?? 1
-  const clear = endIndex > 2 ? [{ deleteContentRange: { range: { startIndex: 1, endIndex: endIndex - 1, ...(tabId ? { tabId } : {}) } } }] : []
-  const requests = [...clear, ...mdToDocs(markdown, tabId)]
-  if (requests.length) await docsApi.documents.batchUpdate({ documentId: id, requestBody: { requests } })
+  const { data } = await docsApi.documents.get({ documentId: id, includeTabsContent: true })
+  const tab = tabId ? findTab(data.tabs ?? [], tabId) : data.tabs?.[0]
+  if (!tab?.documentTab) throw new Error('That tab no longer exists in the Google Doc. Link the note again to pick another tab.')
+  const requests = patchDoc(tab.documentTab, markdown, tabId)
+  if (requests.length)
+    await docsApi.documents.batchUpdate({ documentId: id, requestBody: { requests, ...(data.revisionId ? { writeControl: { requiredRevisionId: data.revisionId } } : {}) } })
   return { modifiedTime: (await meta(id)).modifiedTime }
 })
 

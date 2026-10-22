@@ -54,12 +54,14 @@ await check('link to a new doc: creates it, pushes headings/bold/italic/links, s
   assert(g.calls.every((c) => c.auth === 'Bearer test-token'))
 })
 
-await check('push with only local changes goes straight through, replacing the Doc body', async () => {
+await check('push with only local changes goes straight through, sending only the change', async () => {
   await typeAtEnd('\nLocal edit one.')
   await command('push note')
   await okToast('Pushed')
   assert(g.docs.get(id).markdown.includes('Local edit one.'))
-  assert(g.docs.get(id).lastRequests[0].deleteContentRange)
+  const reqs = g.docs.get(id).lastRequests
+  assert(!reqs.some((r) => r.deleteContentRange), 'nothing already in the Doc is deleted')
+  assert.equal(reqs.filter((r) => r.insertText).map((r) => r.insertText.text).join('').trim(), 'Local edit one.')
   await sleep(800)
   assert.equal(fm(disk('Welcome.md'), 'gdoc_synced_at'), g.docs.get(id).modifiedTime)
 })

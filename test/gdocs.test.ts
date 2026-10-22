@@ -19,7 +19,7 @@ test('frontmatter keys are set without touching other lines or the body', async 
 function render(requests: any[]) {
   let text = requests[0].insertText.text as string
   const at = (r: { startIndex: number; endIndex: number }) => ('\n' + text).slice(r.startIndex, r.endIndex)
-  const styled = requests.filter((r) => r.updateTextStyle && r.updateTextStyle.fields !== 'bold,italic,link').map((r) => [at(r.updateTextStyle.range), r.updateTextStyle.textStyle])
+  const styled = requests.filter((r) => r.updateTextStyle && r.updateTextStyle.fields !== 'bold,italic,strikethrough,link').map((r) => [at(r.updateTextStyle.range), r.updateTextStyle.textStyle])
   const paras = requests.filter((r) => r.updateParagraphStyle).map((r) => [at(r.updateParagraphStyle.range).replace(/\n$/, ''), r.updateParagraphStyle.paragraphStyle.namedStyleType])
   const bullets = requests.filter((r) => r.createParagraphBullets).map((r) => [at(r.createParagraphBullets.range), r.createParagraphBullets.bulletPreset])
   return { text, styled, paras, bullets }
