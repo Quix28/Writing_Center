@@ -1,6 +1,11 @@
 #!/bin/zsh
 # Builds "dist/Writing Centre.app" by placing the app inside a copy of Electron.app
-# (Electron's documented manual packaging), then ad-hoc signs it so macOS will run it.
+# (Electron's documented manual packaging), then signs it so macOS will run it.
+#
+# Signing identity: WC_SIGN_IDENTITY if set, else the first "Apple Development" certificate in the
+# keychain, else ad-hoc. A real certificate keeps the app's identity the same across rebuilds, so the
+# Keychain's "Always Allow" for "writing-centre Safe Storage" sticks; an ad-hoc signature changes with
+# every build, and macOS asks again each time.
 set -euo pipefail
 cd "${0:A:h}/.."
 
@@ -32,7 +37,9 @@ plutil -replace CFBundleIdentifier -string "local.writing-centre" "$PLIST"
 plutil -replace CFBundleShortVersionString -string "$(node -p 'require("./package.json").version')" "$PLIST"
 
 xattr -cr "$APP"
-codesign --force --deep --sign - "$APP"
+IDENTITY="${WC_SIGN_IDENTITY:-$(security find-identity -v -p codesigning | awk '/"Apple Development:/ { print $2; exit }')}"
+codesign --force --deep --timestamp=none --sign "${IDENTITY:--}" "$APP"
+echo "Signed with: ${IDENTITY:-ad-hoc}"
 
 mkdir -p dist
 rm -rf "dist/Writing Centre.app"
