@@ -24,7 +24,7 @@ export function ClaudeTerminal({ visible, activePath }: { visible: boolean; acti
   const [state, setState] = useState<'starting' | 'running' | 'exited'>('starting')
   const [error, setError] = useState<string | null>(null)
 
-  const start = async (mode: 'new' | 'continue' | 'resume' = 'new') => {
+  const start = async (mode: 'shell' | 'new' | 'continue' | 'resume' = 'shell') => {
     const t = term.current!
     setError(null)
     setState('starting')
@@ -52,7 +52,7 @@ export function ClaudeTerminal({ visible, activePath }: { visible: boolean; acti
       if (id !== session.current) return
       session.current = null
       setState('exited')
-      t.write(`\r\n\x1b[2m[Claude Code exited${exitCode ? ` with code ${exitCode}` : ''}. Press Continue last chat or New chat.]\x1b[0m\r\n`)
+      t.write(`\r\n\x1b[2m[Terminal closed${exitCode ? ` with code ${exitCode}` : ''}. Press Terminal to open a new one.]\x1b[0m\r\n`)
     })
     const ro = new ResizeObserver(() => {
       if (!host.current?.offsetWidth) return
@@ -98,7 +98,7 @@ export function ClaudeTerminal({ visible, activePath }: { visible: boolean; acti
     t.focus()
   }
 
-  const restart = (mode: 'new' | 'continue' | 'resume') => {
+  const restart = (mode: 'shell' | 'new' | 'continue' | 'resume') => {
     if (session.current) api.term.kill(session.current)
     session.current = null
     start(mode)
@@ -125,6 +125,7 @@ export function ClaudeTerminal({ visible, activePath }: { visible: boolean; acti
         <span className="status-spacer" />
         <button className="quiet" onClick={() => restart('continue')} title="Reopen the most recent Claude Code chat in this vault (claude --continue)">Continue last chat</button>
         <button className="quiet" onClick={() => restart('resume')} title="Choose any earlier Claude Code chat in this vault (claude --resume)">Past chats…</button>
+        <button className="quiet" onClick={() => restart('shell')} title="Open a fresh plain terminal">Terminal</button>
         <button className="quiet" onClick={() => restart('new')} title="Start a fresh Claude Code session">New chat</button>
       </div>
       {error && <p className="error-text term-error">{error}</p>}

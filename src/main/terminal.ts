@@ -6,8 +6,8 @@ import { getRoot } from './vault'
 import { CLAUDE_DIRS, findClaude } from './claudecode'
 
 /**
- * The Claude Code tab: your own interactive `claude`, in a real terminal, in the vault folder. Started through
- * your login shell so PATH and settings match Terminal.app; `exec` means it is only ever `claude`, never a shell.
+ * The terminal tab: your own login shell in the vault folder, so PATH and settings match Terminal.app. The chat
+ * buttons run `claude` first and drop back to the same shell when it exits.
  */
 const sessions = new Map<string, pty.IPty>()
 /** Single-quoted for the shell, so any path is passed through literally. */
@@ -21,20 +21,22 @@ function cleanEnv(claudeDir: string | null) {
   return { ...env, PATH: path, TERM: 'xterm-256color', COLORTERM: 'truecolor', TERM_PROGRAM: 'WritingCentre' }
 }
 
-/** How the session starts: a new chat, the folder's most recent chat, or Claude Code's own picker of past chats. */
-const MODES = { new: '', continue: ' --continue', resume: ' --resume' } as const
+/** How the session starts: a plain shell, a new chat, the folder's most recent chat, or Claude Code's own picker of past chats. */
+const MODES = { shell: null, new: '', continue: ' --continue', resume: ' --resume' } as const
 export type StartMode = keyof typeof MODES
 
-export function start(sender: WebContents, size: { cols: number; rows: number }, mode: StartMode = 'new'): string {
+export function start(sender: WebContents, size: { cols: number; rows: number }, mode: StartMode = 'shell'): string {
   if (!Object.hasOwn(MODES, mode)) throw new Error('Unknown start mode.')
   const cwd = getRoot()
   if (!cwd) throw new Error('Open a vault first.')
-  // Test hook: WC_CLAUDE_BIN runs a stand-in instead of `claude`.
-  const claude = process.env.WC_CLAUDE_BIN ?? findClaude()
-  if (!claude) throw new Error("Claude Code isn't installed (no `claude` found in ~/.local/bin, Homebrew or your PATH). Install it from claude.com/code, then press New chat.")
-  const id = randomUUID()
   const shell = process.env.SHELL || '/bin/zsh'
-  const p = pty.spawn(shell, ['-l', '-c', `exec ${shellQuote(claude)}${MODES[mode]}`], { name: 'xterm-256color', cols: size.cols, rows: size.rows, cwd, env: cleanEnv(dirname(claude)) })
+  const flags = MODES[mode]
+  // Test hook: WC_CLAUDE_BIN runs a stand-in instead of `claude`.
+  const claude = flags === null ? null : (process.env.WC_CLAUDE_BIN ?? findClaude())
+  if (flags !== null && !claude) throw new Error("Claude Code isn't installed (no `claude` found in ~/.local/bin, Homebrew or your PATH). Install it from claude.com/code, then try again.")
+  const id = randomUUID()
+  const args = claude ? ['-l', '-i', '-c', `${shellQuote(claude)}${flags}; exec ${shellQuote(shell)} -l -i`] : ['-l', '-i']
+  const p = pty.spawn(shell, args, { name: 'xterm-256color', cols: size.cols, rows: size.rows, cwd, env: cleanEnv(claude ? dirname(claude) : null) })
   sessions.set(id, p)
   p.onData((data) => !sender.isDestroyed() && sender.send('term:data', { id, data }))
   p.onExit(({ exitCode }) => {

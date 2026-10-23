@@ -47,6 +47,12 @@ await check('Claude Code does not start until its tab is opened', async () => {
 
 await check('Claude Code tab runs claude in the vault folder, in a real terminal', async () => {
   await tab('Claude Code')
+  await page.waitForSelector('.claude-term .xterm')
+  await page.locator('.claude-term .xterm').click()
+  await page.keyboard.type('echo plain$((20+22)); pwd')
+  await page.keyboard.press('Enter')
+  await page.waitForFunction(() => document.querySelector('.claude-term .xterm-rows')?.innerText.includes('plain42'), null, { timeout: 15000 })
+  await page.locator('.term-bar button', { hasText: 'New chat' }).click()
   await page.waitForFunction(() => document.querySelector('.claude-term .xterm-rows')?.innerText.includes('FAKE CLAUDE'), null, { timeout: 15000 })
   assert((await screen()).replace(/\s+/g, '').includes(tmp('vault').replace(/\/$/, '').replace(/\s+/g, '')), 'runs in the vault')
   await page.waitForTimeout(1600) // Clawd glides to his new spot over 1.2s
@@ -121,6 +127,7 @@ await check('opened like from Finder (bare PATH), it still finds claude in ~/.lo
   const p = await finderApp.firstWindow()
   await p.locator('.tree-row', { hasText: 'Essay' }).click()
   await p.locator('.ribbon [aria-label="Claude Code"]').click()
+  await p.locator('.term-bar button', { hasText: 'New chat' }).click()
   await p.waitForFunction(() => document.querySelector('.claude-term .xterm-rows')?.innerText.includes('FOUND IN LOCAL BIN'), null, { timeout: 15000 })
   await finderApp.close()
   rmSync(home, { recursive: true, force: true })

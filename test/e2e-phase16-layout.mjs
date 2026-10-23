@@ -58,6 +58,7 @@ await check('typing in any pane edits and saves that note', async () => {
 
 await check('Claude Code dragged from the bar docks under a note', async () => {
   await dropOn(page.locator('.ribbon [aria-label="Claude Code"]'), paneOf('Ideas'), 'bottom')
+  await page.locator('.term-bar button', { hasText: 'New chat' }).click()
   await page.waitForFunction(() => document.querySelector('.claude-term .xterm-rows')?.innerText.includes('READY'), null, { timeout: 15000 })
   const ideas = await paneOf('Ideas').boundingBox()
   const term = await page.locator('.claude-term').boundingBox()

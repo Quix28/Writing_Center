@@ -53,6 +53,7 @@ await check('⌃Tab / ⌃⇧Tab cycle through open tabs and wrap around', async 
 
 await check('⌃Tab works from inside the Claude Code terminal too', async () => {
   await page.locator('.ribbon [aria-label="Claude Code"]').click()
+  await page.locator('.term-bar button', { hasText: 'New chat' }).click()
   await page.waitForFunction(() => document.querySelector('.claude-term .xterm-rows')?.innerText.includes('READY'))
   await page.locator('.claude-term .xterm').click()
   await page.keyboard.press('Control+Tab')
