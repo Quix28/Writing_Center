@@ -59,6 +59,20 @@ await check('⌃Tab works from inside the Claude Code terminal too', async () =>
   assert.equal(await activeTab(), 'Welcome')
 })
 
+await check('highlighting text shows its word count next to the total', async () => {
+  await page.locator('.tree-row', { hasText: 'Essay' }).click()
+  await page.locator('.cm-content').click()
+  await page.keyboard.press('Meta+ArrowUp')
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('Home')
+  await page.keyboard.press('Shift+Alt+ArrowRight')
+  await page.keyboard.press('Shift+Alt+ArrowRight')
+  await page.locator('.statusbar', { hasText: /2 of \d+ words selected/ }).waitFor()
+  await page.keyboard.press('ArrowRight')
+  await page.locator('.statusbar', { hasText: /^(?![\s\S]*selected)[\s\S]*\d+ words/ }).waitFor()
+})
+
 await app.close()
 for (const n of ['vault', 'userdata', 'bin']) rmSync(tmp(n), { recursive: true, force: true })
 console.log('Keys e2e: all checks passed')

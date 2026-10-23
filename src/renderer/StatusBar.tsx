@@ -1,24 +1,32 @@
 import { useEffect, useState } from 'react'
 import type { ConnectionState } from './Connections'
-import { docListeners } from './Editor'
+import { docListeners, selectionListeners } from './Editor'
 import { Icon } from './icons'
 import { LiveBadge, gdocs } from './GDocs'
 
+const countWords = (text: string) => (text.match(/[\p{L}\p{N}'’-]+/gu) ?? []).length
+
 function WordCount() {
   const [words, setWords] = useState<number | null>(null)
+  const [selected, setSelected] = useState(0)
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>
     const update = (text: string | null) => {
       clearTimeout(timer)
-      timer = setTimeout(() => setWords(text === null ? null : (text.match(/[\p{L}\p{N}'’-]+/gu) ?? []).length), 250)
+      timer = setTimeout(() => setWords(text === null ? null : countWords(text)), 250)
     }
+    const select = (text: string) => setSelected(countWords(text))
     docListeners.add(update)
+    selectionListeners.add(select)
     return () => {
       clearTimeout(timer)
       docListeners.delete(update)
+      selectionListeners.delete(select)
     }
   }, [])
-  return words === null ? null : <span className="status-item muted">{words.toLocaleString()} {words === 1 ? 'word' : 'words'}</span>
+  if (words === null) return null
+  const label = (n: number) => `${n.toLocaleString()} ${n === 1 ? 'word' : 'words'}`
+  return <span className="status-item muted">{selected ? `${selected.toLocaleString()} of ${label(words)} selected` : label(words)}</span>
 }
 
 export function StatusBar(p: { conn: ConnectionState; clawdOn: boolean; onClawd: () => void; onConnections: () => void; onPalette: () => void }) {

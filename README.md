@@ -109,6 +109,7 @@ Test-only variables (leave them unset in normal use): `WC_HEADLESS`, `WC_VAULT`,
   - Moving a view keeps it running: the Claude Code session, the Assistant chat and the Graph's zoom survive being dragged to another pane.
   - Closing a pane's last tab removes the pane. The layout is remembered per vault and comes back on the next launch.
   - The panels (Backlinks, Review, Comments, AI check, Assistant) and Clawd follow the note you last clicked into.
+- **Word count:** the status bar shows the note's total; highlight text and it reads "N of M words selected".
 - **Keyboard:**
   - **⌘P** opens the command palette: files, plus every command below.
   - **⌘F** opens find & replace in the open note, from anywhere in the app. **⌘G** / **⇧⌘G** go to the next / previous match, **Esc** closes it.

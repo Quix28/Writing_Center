@@ -29,6 +29,10 @@ export const typingListeners = new Set<() => void>()
 /** Receives the current note's text after each change (null when no note is shown); drives the word count. */
 export const docListeners = new Set<(text: string | null) => void>()
 const notifyDoc = (text: string | null) => docListeners.forEach((f) => f(text))
+/** Receives the highlighted text of the note being worked in ('' when nothing is selected); drives the selection word count. */
+export const selectionListeners = new Set<(text: string) => void>()
+const selectedText = (v: EditorView | null) => (v ? v.state.selection.ranges.map((r) => v.state.sliceDoc(r.from, r.to)).join(' ') : '')
+const notifySelection = () => selectionListeners.forEach((f) => f(selectedText(view)))
 
 export const getView = () => view
 /** ⌘F from anywhere in the app: opens find & replace in the open note. */
@@ -60,6 +64,7 @@ export function configureEditor(opts: { files: () => string[]; openLink: (target
       const path = shown.get(u.view)
       reviewSetters.get(u.view)?.(review)
       if (u.docChanged && u.view === view) notifyDoc(savedText(u.state))
+      if ((u.selectionSet || u.docChanged) && u.view === view) notifySelection()
       if (u.view === view && u.transactions.some((t) => t.isUserEvent('input') || t.isUserEvent('delete'))) typingListeners.forEach((f) => f())
       if (path && u.transactions.some((t) => !t.annotation(quiet) && (t.docChanged || (review && t.effects.length)))) schedule(path)
     }),
@@ -168,6 +173,7 @@ export function Editor({ path, active }: { path: string; active: boolean }) {
       if (view === v) {
         view = null
         notifyDoc(null)
+        notifySelection()
       }
       v.destroy()
     }
@@ -181,6 +187,7 @@ export function Editor({ path, active }: { path: string; active: boolean }) {
     if (!active) return
     view = own.current
     if (shown.get(view!) === path) notifyDoc(savedText(view!.state))
+    notifySelection()
   }, [active, path])
 
   return (
