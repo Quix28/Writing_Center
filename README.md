@@ -106,6 +106,8 @@ Test-only variables (leave them unset in normal use): `WC_HEADLESS`, `WC_VAULT`,
   - Click a view to open it. It opens next to your notes, or comes to the front if it's already open.
   - **Drag** a view from the bar, a file from the file list, or any tab onto a pane. Drop it on a pane's **edge** to split that pane (left, right, top or bottom), or in the **middle** to add it as a tab. A blue outline shows where it will land.
   - Any mix works: four notes side by side, three notes and Claude Code, Claude Code under one note, and so on. Panes in a row share the space equally; drag the lines between them to resize.
+  - Dropping near a pane's edge splits that pane. Dropping on the outer 24 px of the workspace (left, right or bottom) gives the new pane the whole side, even when the screen is already split the other way.
+  - In the file list, drag a note or folder onto a folder to move it there, or onto empty space to move it to the vault root.
   - Moving a view keeps it running: the Claude Code session, the Assistant chat and the Graph's zoom survive being dragged to another pane.
   - Closing a pane's last tab removes the pane. The layout is remembered per vault and comes back on the next launch.
   - The panels (Backlinks, Review, Comments, AI check, Assistant) and Clawd follow the note you last clicked into.
