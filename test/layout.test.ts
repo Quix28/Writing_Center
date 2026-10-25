@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { addTab, dropTab, pane, paneWith, panes, parseLayout, removeTab, renameTabs, type Node } from '../src/renderer/layout.ts'
+import { addTab, dropAtRoot, dropTab, pane, paneWith, panes, parseLayout, removeTab, renameTabs, type Node } from '../src/renderer/layout.ts'
 
 const shape = (n: Node): unknown => (n.type === 'pane' ? n.tabs : { [n.dir]: n.children.map(shape) })
 
@@ -38,4 +38,15 @@ test('renames follow tabs, and saved layouts are validated', () => {
   assert.deepEqual(parseLayout(JSON.stringify(root)), root)
   assert.equal(parseLayout('{"type":"split","dir":"row","children":[],"sizes":[1]}'), null)
   assert.equal(parseLayout('nope'), null)
+})
+
+test('an outer-edge drop spans the whole side of an up/down or side-by-side split', () => {
+  let col: Node = pane(['a.md'])
+  col = dropTab(col, panes(col)[0].id, 'bottom', 'b.md')
+  assert.deepEqual(shape(dropAtRoot(col, 'right', 'c.md')), { row: [{ col: [['a.md'], ['b.md']] }, ['c.md']] })
+  let row: Node = pane(['a.md'])
+  row = dropTab(row, panes(row)[0].id, 'right', 'b.md')
+  assert.deepEqual(shape(dropAtRoot(row, 'bottom', 'c.md')), { col: [{ row: [['a.md'], ['b.md']] }, ['c.md']] })
+  assert.deepEqual(shape(dropAtRoot(row, 'right', 'c.md')), { row: [['a.md'], ['b.md'], ['c.md']] })
+  assert.equal(dropAtRoot(pane(['a.md']), 'left', 'a.md').type, 'pane')
 })

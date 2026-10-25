@@ -40,7 +40,7 @@ export type Ops = {
   onFocus: (paneId: string) => void
   onActivate: (paneId: string, t: Tab) => void
   onClose: (t: Tab) => void
-  onDrop: (paneId: string, zone: Zone, t: Tab) => void
+  onDrop: (paneId: string, zone: Zone, t: Tab, whole: boolean) => void
   onResize: (splitId: string, sizes: number[]) => void
   /** A file dropped in the middle of this tab is handled by the tab itself (a canvas adds it as a card). */
   ownsFileDrop: (t: Tab) => boolean
@@ -117,6 +117,9 @@ export function LayoutView({ node, ops }: { node: Node; ops: Ops }) {
   )
 }
 
+/** Pixels from the workspace edge where a drop splits the whole workspace instead of one pane. */
+const WHOLE_EDGE = 24
+
 function zoneAt(el: HTMLElement, e: DragEvent): Zone {
   const r = el.getBoundingClientRect()
   const x = (e.clientX - r.left) / r.width
@@ -129,7 +132,7 @@ function zoneAt(el: HTMLElement, e: DragEvent): Zone {
 function PaneView({ pane, ops }: { pane: Pane; ops: Ops }) {
   const box = useRef<HTMLDivElement>(null)
   const body = useRef<HTMLDivElement>(null)
-  const [zone, setZone] = useState<Zone | null>(null)
+  const [hover, setHover] = useState<{ zone: Zone; whole?: React.CSSProperties } | null>(null)
   const opsRef = useRef(ops)
   opsRef.current = ops
   const paneRef = useRef(pane)
@@ -139,27 +142,33 @@ function PaneView({ pane, ops }: { pane: Pane; ops: Ops }) {
   useEffect(() => {
     const el = body.current!
     const outer = box.current!
-    const zoneFor = (e: DragEvent): Zone | null => {
+    const zoneFor = (e: DragEvent): { zone: Zone; whole?: React.CSSProperties } | null => {
       if (!isTabDrag(e)) return null
+      const L = el.closest('.layout')!.getBoundingClientRect()
+      const r = el.getBoundingClientRect()
+      const strip = (z: Zone, style: React.CSSProperties) => ({ zone: z, whole: { position: 'fixed', ...style } as React.CSSProperties })
+      if (e.clientX - L.left < WHOLE_EDGE && r.left - L.left < 2) return strip('left', { left: L.left, top: L.top, width: L.width * 0.3, height: L.height })
+      if (L.right - e.clientX < WHOLE_EDGE && L.right - r.right < 2) return strip('right', { left: L.right - L.width * 0.3, top: L.top, width: L.width * 0.3, height: L.height })
+      if (L.bottom - e.clientY < WHOLE_EDGE && L.bottom - r.bottom < 2) return strip('bottom', { left: L.left, top: L.bottom - L.height * 0.3, width: L.width, height: L.height * 0.3 })
       const z = zoneAt(el, e)
       const fileDrag = !e.dataTransfer!.types.includes(TAB_DRAG)
       const active = paneRef.current.active
-      return z === 'center' && fileDrag && active && opsRef.current.ownsFileDrop(active) ? null : z
+      return z === 'center' && fileDrag && active && opsRef.current.ownsFileDrop(active) ? null : { zone: z }
     }
     const over = (e: DragEvent) => {
       const z = zoneFor(e)
-      setZone(z)
+      setHover(z)
       if (z) e.preventDefault()
     }
-    const leave = (e: DragEvent) => !el.contains(e.relatedTarget as globalThis.Node) && setZone(null)
+    const leave = (e: DragEvent) => !el.contains(e.relatedTarget as globalThis.Node) && setHover(null)
     const drop = (e: DragEvent) => {
       const z = zoneFor(e)
-      setZone(null)
+      setHover(null)
       const tab = draggedTab(e)
       if (!z || !tab) return
       e.preventDefault()
       e.stopPropagation()
-      opsRef.current.onDrop(paneRef.current.id, z, tab)
+      opsRef.current.onDrop(paneRef.current.id, z.zone, tab, !!z.whole)
     }
     const focus = () => opsRef.current.onFocus(paneRef.current.id)
     el.addEventListener('dragover', over)
@@ -185,7 +194,7 @@ function PaneView({ pane, ops }: { pane: Pane; ops: Ops }) {
           const tab = draggedTab(e)
           if (!tab) return
           e.preventDefault()
-          ops.onDrop(pane.id, 'center', tab)
+          ops.onDrop(pane.id, 'center', tab, false)
         }}
       >
         {pane.tabs.map((t) => (
@@ -205,7 +214,7 @@ function PaneView({ pane, ops }: { pane: Pane; ops: Ops }) {
       </div>
       <div ref={body} className="pane-body">
         {pane.active ? ops.body(pane.active, pane) : <div className="empty"><p>Drop a file or a view from the left bar here, or press ⌘P.</p></div>}
-        {zone && <div className={`drop-zone ${zone}`} />}
+        {hover && <div className={`drop-zone ${hover.whole ? 'whole' : hover.zone}`} style={hover.whole} />}
       </div>
     </section>
   )

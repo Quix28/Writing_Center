@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type DragEvent } from 'react'
 import type { TreeNode } from './api'
 import { Icon, type IconName } from './icons'
 import { fileKind } from './FileViewer'
@@ -9,12 +9,32 @@ type Props = {
   onOpen: (path: string) => void
   onNew: (folder: string, dir: boolean) => void
   onRename: (path: string) => void
+  /** Moves a file or folder into `folder` ('' is the vault root). */
+  onMove: (path: string, folder: string) => void
   onDelete: (path: string) => void
   onGraph?: () => void
   onNewCanvas?: () => void
 }
 
 export const DRAG_TYPE = 'application/x-vault-path'
+
+/** A tree row or the empty tree area accepting a dragged file or folder; moves it into `folder`. */
+function dropInto(folder: string, onMove: Props['onMove'], over: (on: boolean) => void) {
+  const dragged = (e: DragEvent) => e.dataTransfer.types.includes(DRAG_TYPE)
+  return {
+    onDragOver: (e: DragEvent) => dragged(e) && (e.preventDefault(), e.stopPropagation(), over(true)),
+    onDragLeave: () => over(false),
+    onDrop: (e: DragEvent) => {
+      over(false)
+      const from = e.dataTransfer.getData(DRAG_TYPE)
+      if (!dragged(e) || !from) return
+      e.preventDefault()
+      e.stopPropagation()
+      const inPlace = from.split('/').slice(0, -1).join('/') === folder
+      if (!inPlace && folder !== from && !folder.startsWith(from + '/')) onMove(from, folder)
+    }
+  }
+}
 
 const label = (n: TreeNode) => (n.dir ? n.name : n.name.replace(/\.md$/, ''))
 
@@ -27,16 +47,18 @@ export function iconFor(node: { name: string; dir?: boolean }, open = false): Ic
 
 function Row({ node, depth, ...p }: Props & { node: TreeNode; depth: number }) {
   const [open, setOpen] = useState(true)
+  const [over, setOver] = useState(false)
   const icon = iconFor(node, open)
   return (
     <>
       <div
-        className={`tree-row ${p.active === node.path ? 'active' : ''} ${node.dir ? 'dir' : ''}`}
+        className={`tree-row ${p.active === node.path ? 'active' : ''} ${node.dir ? 'dir' : ''} ${over ? 'drop-target' : ''}`}
         style={{ paddingLeft: 10 + depth * 14 }}
-        draggable={!node.dir}
+        draggable
         onDragStart={(e) => e.dataTransfer.setData(DRAG_TYPE, node.path)}
         onClick={() => (node.dir ? setOpen(!open) : p.onOpen(node.path))}
         title={node.path}
+        {...(node.dir ? dropInto(node.path, p.onMove, setOver) : {})}
       >
         <Icon name={icon} size={15} />
         <span className="tree-name">{label(node)}</span>
@@ -57,6 +79,7 @@ function Row({ node, depth, ...p }: Props & { node: TreeNode; depth: number }) {
 }
 
 export function FileTree(p: Props & { vaultName: string; onPickVault: () => void }) {
+  const [over, setOver] = useState(false)
   return (
     <nav className="tree" aria-label="Vault files">
       <div className="vault-head">
@@ -71,7 +94,7 @@ export function FileTree(p: Props & { vaultName: string; onPickVault: () => void
         <button onClick={p.onNewCanvas} title="New canvas (mind map)"><Icon name="canvas" size={14} /> Canvas</button>
         <button onClick={p.onGraph} title="Graph of wikilinks"><Icon name="graph" size={14} /> Graph</button>
       </div>
-      <div className="tree-list">
+      <div className={`tree-list ${over ? 'drop-target' : ''}`} {...dropInto('', p.onMove, setOver)}>
         {p.nodes.length ? p.nodes.map((n) => <Row key={n.path} {...p} node={n} depth={0} />) : <p className="muted empty-hint">This vault is empty. Create your first note above.</p>}
       </div>
     </nav>

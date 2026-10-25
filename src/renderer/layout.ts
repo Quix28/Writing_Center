@@ -81,6 +81,16 @@ export function dropTab(root: Node, paneId: string, zone: Zone, tab: Tab): Node 
   return evenAround(next, fresh.id)
 }
 
+/** Drops a tab on the outer edge of the workspace: it gets its own pane spanning the whole side. */
+export function dropAtRoot(root: Node, zone: Exclude<Zone, 'center'>, tab: Tab): Node {
+  if (panes(root).length === 1 && panes(root)[0].tabs.length === 1 && panes(root)[0].tabs[0] === tab) return root
+  const rest = removeTab(root, tab)
+  const fresh = pane([tab])
+  const before = zone === 'left' || zone === 'top'
+  const split: Node = { type: 'split', id: newId('s'), dir: zone === 'left' || zone === 'right' ? 'row' : 'col', children: before ? [fresh, rest] : [rest, fresh], sizes: [0.5, 0.5] }
+  return evenAround(withPanes(split, (p) => p), fresh.id)
+}
+
 /** Panes side by side share their row (or column) equally, so four notes dropped in a row get a quarter each. */
 function evenAround(n: Node, paneId: string): Node {
   if (n.type === 'pane') return n

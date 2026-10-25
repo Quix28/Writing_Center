@@ -25,7 +25,7 @@ import { ClaudeTerminal } from './ClaudeTerminal'
 import { CommentsPanel } from './CommentsPanel'
 import { iconFor } from './FileTree'
 import { LayoutView, Ribbon, ViewSlot, viewEl, type Ops, type RibbonItem } from './Workspace'
-import { activate, addTab, dropTab, isView, pane, paneById, paneWith, panes, parseLayout, removeTab, renameTabs, resize, type Node, type Tab } from './layout'
+import { activate, addTab, dropAtRoot, dropTab, isView, pane, paneById, paneWith, panes, parseLayout, removeTab, renameTabs, resize, type Node, type Tab } from './layout'
 import type { IconName } from './icons'
 
 const VIEWS: (RibbonItem & { full?: boolean })[] = [
@@ -212,8 +212,9 @@ export function App() {
     }
   }
 
-  const rename = async (from: string) => {
-    const to = await ask('Rename / move to (path inside the vault)', from)
+  const rename = async (from: string) => moveTo(from, await ask('Rename / move to (path inside the vault)', from))
+
+  const moveTo = async (from: string, to: string | null) => {
     if (!to || to === from) return
     try {
       await Promise.all(allTabs().filter((t) => under(t, from)).map(flush))
@@ -415,10 +416,10 @@ export function App() {
       focusTab(id, t)
     },
     onClose: closeTab,
-    onDrop: (id, zone, t) => {
+    onDrop: (id, zone, t, whole) => {
       if (writeGuard()) return
       if (!isView(t) && !files.includes(t)) return
-      const next = dropTab(layoutRef.current, id, zone, t)
+      const next = whole && zone !== 'center' ? dropAtRoot(layoutRef.current, zone, t) : dropTab(layoutRef.current, id, zone, t)
       setLayout(next)
       const at = paneWith(next, t)
       if (at) focusTab(at.id, t)
@@ -439,6 +440,7 @@ export function App() {
           onOpen={open}
           onNew={newEntry}
           onRename={rename}
+          onMove={(from, folder) => moveTo(from, folder ? `${folder}/${from.split('/').pop()}` : from.split('/').pop()!)}
           onDelete={remove}
           onGraph={() => open('view:graph')}
           onNewCanvas={() => newEntry('', false, '.canvas')}

@@ -86,6 +86,7 @@ body.resizing-row iframe, body.resizing-col iframe, body.resizing-row .xterm, bo
 .pane:not(.focused) .tab.active::after { background: var(--border); }
 .tab[draggable=true] { cursor: default; }
 .drop-zone { position: absolute; background: #9bb8d82a; border: 2px solid #9bb8d8aa; border-radius: 6px; pointer-events: none; z-index: 40; transition: all 0.08s ease-out; }
+.drop-zone.whole { z-index: 60; }
 .drop-zone.center { inset: 6px; }
 .drop-zone.left { left: 6px; top: 6px; bottom: 6px; width: calc(50% - 9px); }
 .drop-zone.right { right: 6px; top: 6px; bottom: 6px; width: calc(50% - 9px); }
@@ -109,6 +110,8 @@ body.resizing-row iframe, body.resizing-col iframe, body.resizing-row .xterm, bo
 .tree-row { display: flex; align-items: center; gap: 7px; padding: 3px 8px; margin: 0 6px; border-radius: 5px; cursor: pointer; white-space: nowrap; color: var(--text-2); position: relative; }
 .tree-row .icon { color: var(--muted); }
 .tree-row.dir { color: var(--text); font-weight: 500; }
+.tree-row.drop-target { background: #9bb8d833; outline: 1px solid #9bb8d8aa; }
+.tree-list.drop-target { background: #9bb8d814; }
 .tree-row:hover { background: var(--bg-3); }
 .tree-row.active { background: var(--bg-4); color: #fff; }
 .tree-row.active::before { content: ''; position: absolute; left: -6px; top: 4px; bottom: 4px; width: 2px; border-radius: 2px; background: var(--accent); }

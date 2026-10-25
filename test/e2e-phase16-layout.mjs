@@ -27,7 +27,7 @@ const paneOf = (label) => page.locator('.pane', { has: page.locator('.tab.active
 /** Drags `source` onto a pane, at an edge ('left' | 'right' | 'top' | 'bottom') or the middle. */
 const dropOn = async (source, pane, zone) => {
   const b = await pane.locator('.pane-body').boundingBox()
-  const at = { left: [8, b.height / 2], right: [b.width - 8, b.height / 2], top: [b.width / 2, 8], bottom: [b.width / 2, b.height - 8], center: [b.width / 2, b.height / 2] }[zone]
+  const at = { left: [40, b.height / 2], right: [b.width - 40, b.height / 2], top: [b.width / 2, 8], bottom: [b.width / 2, b.height - 40], center: [b.width / 2, b.height / 2] }[zone]
   await source.dragTo(pane.locator('.pane-body'), { targetPosition: { x: at[0], y: at[1] } })
   await sleep(300)
 }
@@ -36,6 +36,16 @@ const screen = () => page.locator('.claude-term .xterm-rows').innerText()
 await check('the left bar lists the views and the side panel is gone', async () => {
   for (const label of ['Files', 'Graph', 'Backlinks', 'Review', 'Comments', 'AI check', 'Claude Code', 'Assistant', 'Inspiration']) await page.locator(`.ribbon [aria-label="${label}"]`).waitFor()
   assert.equal(await page.locator('.side').count(), 0)
+})
+
+await check('dragging a note onto a folder in the tree moves it, and onto empty space moves it back', async () => {
+  await page.locator('.tree-row', { hasText: 'Second' }).dragTo(page.locator('.tree-row.dir', { hasText: 'notes' }))
+  await sleep(600)
+  assert(readFileSync(tmp('vault') + 'notes/Second.md', 'utf8').length > 0)
+  const list = await page.locator('.tree-list').boundingBox()
+  await page.locator('.tree-row', { hasText: 'Second' }).dragTo(page.locator('.tree-list'), { targetPosition: { x: 40, y: list.height - 10 } })
+  await sleep(600)
+  assert(readFileSync(tmp('vault') + 'Second.md', 'utf8').length > 0)
 })
 
 await check('four notes side by side, each in its own editor', async () => {
@@ -95,6 +105,14 @@ await check('closing a pane\'s last tab removes the pane', async () => {
   await paneOf('Essay').locator('.tab button[aria-label="Close Essay"]').click()
   // Welcome's pane now shows Claude Code; Second and Ideas keep their editors.
   await page.waitForFunction(() => document.querySelectorAll('.cm-editor').length === 2)
+})
+
+await check('dropping on the outer edge splits the whole workspace, whatever is already split', async () => {
+  const L = await page.locator('.layout').boundingBox()
+  await page.locator('.ribbon [aria-label="Backlinks"]').dragTo(page.locator('.pane').last().locator('.pane-body'), { targetPosition: { x: (await page.locator('.pane').last().locator('.pane-body').boundingBox()).width - 6, y: 150 } })
+  await sleep(300)
+  const b = await page.locator('.pane', { has: page.locator('.tab.active', { hasText: 'Backlinks' }) }).boundingBox()
+  assert(b.height > L.height - 4 && b.x + b.width > L.x + L.width - 4, `Backlinks spans the full right side: ${JSON.stringify(b)}`)
 })
 
 await check('the layout comes back after a restart', async () => {
